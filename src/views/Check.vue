@@ -282,7 +282,7 @@ async function toUploadFile(file: File) {
     if (file) {
       formDataObj.append('file', file)
     }
-    const res1 = await paxios.post('https://api.88xuezi.com/api/upload_file', formDataObj, {
+    const res1 = await paxios.post('https://ck.88xuezi.cn/api/upload_file', formDataObj, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
