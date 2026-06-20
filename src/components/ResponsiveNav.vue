@@ -2,15 +2,17 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Menu, Close } from '@element-plus/icons-vue'
+import { onMounted } from 'vue'
+import { paxios } from '@/utils/paxios'
 
-const props = withDefaults(defineProps<{
-  customerServiceAction?: () => void
-}>(), {
-  customerServiceAction: () => {}
-})
 
 const router = useRouter()
 const mobileMenuOpen = ref(false)
+const dialogVisible = ref(false)
+const dialogWidth = ref('450px')
+const phone = ref('')
+const lxqq = ref('')
+const lxwx = ref("");
 
 const navItems = [
   { label: '首页', path: '/' },
@@ -19,34 +21,53 @@ const navItems = [
   { label: '常见问题', path: '/faq' }
 ]
 
+onMounted(async () => {
+  let res = await paxios.get('/check/get_customer');
+  if (res.data.code === 0) {
+    if (res.data.data.phone) {
+      phone.value = res.data.data.phone
+    }
+    if (res.data.data.qq) {
+      lxqq.value = res.data.data.qq
+    }
+    if (res.data.data.wechat) {
+      lxwx.value = res.data.data.wechat
+    }
+  }
+})
+
 const handleNav = (path: string) => {
   mobileMenuOpen.value = false
   router.push(path)
 }
-
-const handleCustomerService = () => {
+function showCS() {
   mobileMenuOpen.value = false
-  props.customerServiceAction?.()
+  dialogVisible.value = true
 }
 </script>
 
 <template>
+  <el-dialog v-model="dialogVisible" title="联系客服" :width="dialogWidth" :close-on-click-modal="false" show-close>
+    <div>
+      <div class="content-item" v-if="phone">
+        手机号：{{ phone }}
+      </div>
+      <div class="content-item" v-if="lxwx">
+        微信：{{ lxwx }}
+      </div>
+      <div class="content-item" v-if="lxqq">
+        QQ：{{ lxqq }}
+      </div>
+    </div>
+  </el-dialog>
   <div class="responsive-nav">
     <!-- 桌面端菜单 -->
     <div class="nav-menu desktop">
-      <el-button
-        v-for="item in navItems"
-        :key="item.label"
-        text
-        @click="handleNav(item.path)"
-      >
+      <el-button v-for="item in navItems" :key="item.label" text @click="handleNav(item.path)">
         {{ item.label }}
       </el-button>
-      <el-button
-        type="success"
-        @click="handleCustomerService"
-      >
-        客服咨询
+      <el-button key="cs" text @click="showCS">
+        联系客服
       </el-button>
     </div>
 
@@ -61,19 +82,11 @@ const handleCustomerService = () => {
     <!-- 移动端下拉菜单 -->
     <transition name="slide-down">
       <div v-show="mobileMenuOpen" class="mobile-menu">
-        <div
-          v-for="item in navItems"
-          :key="item.label"
-          class="mobile-menu-item"
-          @click="handleNav(item.path)"
-        >
+        <div v-for="item in navItems" :key="item.label" class="mobile-menu-item" @click="handleNav(item.path)">
           {{ item.label }}
         </div>
-        <div
-          class="mobile-menu-item success"
-          @click="handleCustomerService"
-        >
-          客服咨询
+        <div key="cs" class="mobile-menu-item" text @click="showCS">
+          联系客服
         </div>
       </div>
     </transition>
@@ -81,6 +94,10 @@ const handleCustomerService = () => {
 </template>
 
 <style scoped>
+.content-item {
+  margin-bottom: 10px;
+}
+
 .responsive-nav {
   display: flex;
   align-items: center;

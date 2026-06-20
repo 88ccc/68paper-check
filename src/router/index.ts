@@ -3,7 +3,6 @@ import { useWebsitConfigStore } from '@/stores/websitConfig'
 import { useProductConfigStore } from '@/stores/productConfig'
 import { storeToRefs } from "pinia"
 import { paxios } from '@/utils/paxios'
-import { CompleteUrl } from '@/utils/utils'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -33,6 +32,10 @@ const router = createRouter({
           component: () => import('@/views/FAQ.vue'),
         }
       ]
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      redirect: '/'
     }
   ],
   scrollBehavior(to, from, savedPosition) {
@@ -66,18 +69,13 @@ const setFavicon = (iconPath: string) => {
 };
 
 router.beforeEach(async (to, from, next) => {
-  const { custom, webIsInit, apiUrl, shopId } = storeToRefs(useWebsitConfigStore());
-  const { wanfang, weipu, zhiwang, endtimeId } = storeToRefs(useProductConfigStore());
+  const { custom, webIsInit, apiUrl } = storeToRefs(useWebsitConfigStore());
+  const { wanfang, weipu, zhiwang, endtimeId, brand } = storeToRefs(useProductConfigStore());
   try {
     if (!webIsInit.value) {
       const res = await fetch('/config.json');
       const config = await res.json();
       apiUrl.value = config.apiUrl;
-      shopId.value = config.shopId;
-      const conres = await paxios.get("/index/getAllConfig");
-      if (conres.data.code == 0) {
-        custom.value.url = CompleteUrl(conres.data.data.custom.url)
-      }
       const pres = await fetch('/product.json');
       const product = await pres.json();
       if (Array.isArray(product.end_time_id) && (product.end_time_id.length > 0)) {
@@ -85,20 +83,35 @@ router.beforeEach(async (to, from, next) => {
           endtimeId.value.push(product.end_time_id[i].id)
         }
       }
+      let hasWanfang = false;
+      let hasWeipu = false;
+      let hasZhiwang = false;
       if (Array.isArray(product.wanfang) && (product.wanfang.length > 0)) {
         wanfang.value = product.wanfang
+        hasWanfang = true;
       }
       if (Array.isArray(product.weipu) && (product.weipu.length > 0)) {
         weipu.value = product.weipu
+        hasWeipu = true;
       }
       if (Array.isArray(product.zhiwang) && (product.zhiwang.length > 0)) {
         zhiwang.value = product.zhiwang
+        hasZhiwang = true;
       }
-      const cpres = await paxios.get("/index/getAllProduct?shopid=" + shopId.value);
+      if (hasWanfang && (!hasWeipu) && (!hasZhiwang)) {
+        brand.value = 'wanfang'
+      } else if ((!hasWanfang) && (hasWeipu) && (!hasZhiwang)) {
+        brand.value = 'weipu'
+      } else if ((!hasWanfang) && (!hasWeipu) && (hasZhiwang)) {
+        brand.value = 'zhiwang'
+      } else {
+        brand.value = 'mix'
+      }
+      const cpres = await paxios.get("/check/product_info");
       if (cpres.data.code == 0) {
         let pdata = cpres.data.data;
         for (let i = 0; i < wanfang.value.length; i++) {
-          for (let k = 0; i < pdata.length; k++) {
+          for (let k = 0; k < pdata.length; k++) {
             if (wanfang.value[i].id == pdata[k].id) {
               if (pdata[k].status != 1) {
                 wanfang.value.splice(i, 1);
@@ -112,8 +125,15 @@ router.beforeEach(async (to, from, next) => {
             }
           }
         }
+        for (let i = 0; i < wanfang.value.length; i++) {
+          if(wanfang.value[i].price == 0){
+            wanfang.value.splice(i, 1);
+            i--;
+          }
+        }
         for (let i = 0; i < weipu.value.length; i++) {
-          for (let k = 0; i < pdata.length; k++) {
+          console.log(weipu.value[i].id)
+          for (let k = 0; k < pdata.length; k++) {
             if (weipu.value[i].id == pdata[k].id) {
               if (pdata[k].status != 1) {
                 weipu.value.splice(i, 1);
@@ -127,8 +147,14 @@ router.beforeEach(async (to, from, next) => {
             }
           }
         }
+        for(let i = 0; i < weipu.value.length; i++) {
+          if(weipu.value[i].price == 0){
+            weipu.value.splice(i, 1);
+            i--;
+          }
+        }
         for (let i = 0; i < zhiwang.value.length; i++) {
-          for (let k = 0; i < pdata.length; k++) {
+          for (let k = 0; k < pdata.length; k++) {
             if (zhiwang.value[i].id == pdata[k].id) {
               if (pdata[k].status != 1) {
                 zhiwang.value.splice(i, 1);
@@ -140,6 +166,12 @@ router.beforeEach(async (to, from, next) => {
               zhiwang.value[i].config = pdata[k].config
               break;
             }
+          }
+        }
+        for(let i = 0; i < zhiwang.value.length; i++) {
+          if(zhiwang.value[i].price == 0){
+            zhiwang.value.splice(i, 1);
+            i--;
           }
         }
       } else {
@@ -155,7 +187,6 @@ router.beforeEach(async (to, from, next) => {
     console.log(err)
     next();
   }
-
 
 })
 

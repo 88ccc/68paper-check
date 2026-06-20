@@ -6,5 +6,6 @@ export const useProductConfigStore = defineStore('productConfig', () => {
   const weipu = ref(<any[]>[]);
   const zhiwang = ref(<any[]>[])
   const endtimeId = ref(<string[]>[]);
-  return { wanfang, weipu, zhiwang, endtimeId }
+  const brand = ref(<'weipu' | 'wanfang' | 'zhiwang'| 'mix'>'mix');
+  return { wanfang, weipu, zhiwang, endtimeId ,brand}
 })

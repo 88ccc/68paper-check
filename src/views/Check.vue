@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, onMounted, computed, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
   Warning,
@@ -8,7 +8,6 @@ import {
 import type { Ref } from 'vue';
 import ResponsiveNav from '@/components/ResponsiveNav.vue'
 import { paxios } from '@/utils/paxios'
-import { useWebsitConfigStore } from '@/stores/websitConfig'
 import { storeToRefs } from "pinia"
 import QRCode from 'qrcode';
 import { mySleepMs, getBrowserType } from '@/utils/utils'
@@ -16,18 +15,32 @@ import type { UploadFile, UploadFiles, UploadInstance } from 'element-plus'
 import { useProductConfigStore } from '@/stores/productConfig'
 import { useWxOpenidStore } from '@/stores/wxopenid'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
+import { get } from 'http';
 
+const cardFormRef: Ref<HTMLDivElement | null> = ref(null);
+const { wanfang, weipu, zhiwang, endtimeId, brand } = storeToRefs(useProductConfigStore());
 const { openid } = storeToRefs(useWxOpenidStore());
-
 const payFormRef: Ref<HTMLDivElement | null> = ref(null);
-const { custom, shopId } = storeToRefs(useWebsitConfigStore());
-const { wanfang, weipu, zhiwang, endtimeId } = storeToRefs(useProductConfigStore());
 const product = ref(<any>{});
 const route = useRoute()
 const router = useRouter()
 const loading = ref(false);
 const txtupload = ref(true);
 const needEndTime = ref(false);
+const currHasSchool = ref(false);
+const currHasSchool_x = ref(false);
+const currHasClassCode = ref(false);
+const currHasClassType = ref(false);
+let orderid = '';
+let find = false;
+const productico = ref('📄');
+//浏览器类型
+const browserType = ref('');
+const qrcodeUrl = ref('')
+const showPayQRCode = ref(false)
+const payQRCodeTitle = ref('')
+const payId = ref('')
+
 const aliQRre = ref({
   id: "",
   qr: ""
@@ -36,46 +49,55 @@ const wxQRre = ref({
   id: "",
   qr: ""
 });
-let orderid = '';
-let find = false;
-const productico = ref('📄');
-const payWaring = ref('');
 
-//是否支持支付宝
-const isSupportAlipay = ref(false);
-//是否支持微信支付
-const isSupportWechat = ref(false);
-//浏览器类型
-const browserType = ref('');
-let AliapySet: any = null;
-let wechatSet: any = null;
-const qrcodeUrl = ref('')
-const showPayQRCode = ref(false)
-const payQRCodeTitle = ref('')
-const payId = ref('')
+const smallp = ref(false)
+
 //定时器
 let timer: any = null;
 let timerPay: any = null;
 const qrLoading = ref(false)
 
-// 表单数据
-const formData = reactive({
-  title: '',
-  endTime: '',
-  author: '',
-  uploadType: 'file',
-  file: null as File | null,
-  text: '',
-  wordCount: 0,
-  calculatedPrice: 0,
-  fileName: ''
+const payWaring = ref('')
+const isSupportWechat = ref(false)
+const isSupportAlipay = ref(false)
+const paymentMethod = ref('')
+let wechatSet: any = null;
+let AliapySet: any = null;
+
+const cardForm = reactive({
+  cardid1: '',
+  cardid2: ''
 })
 
-// 步骤
-const currentStep = ref(1)
-const uploadRef = ref<UploadInstance>()
-const showCustomerService = ref(false)
+interface WPZPPARAM {
+  value: string;
+  name: string;
+}
+const wpzpSchoolId = ref<WPZPPARAM[]>([]);
+const wpzpClassCode = ref<WPZPPARAM[]>([]);
+const wpzpClassType = ref<WPZPPARAM[]>([]);
 
+// 将 wpzpSchoolId 转换为 el-select-v2 需要的格式
+const schoolOptions = computed(() => {
+  return wpzpSchoolId.value.map(item => ({
+    label: item.name,
+    value: item.value
+  }));
+});
+
+function getschoolbyid(id: string) {
+  return wpzpSchoolId.value.find(item => item.value === id)?.name || '';
+}
+
+function getClassCodebyid(id: string) {
+  return wpzpClassCode.value.find(item => item.value === id)?.name || '';
+}
+
+function getClassTypebyid(id: string) {
+
+  return wpzpClassType.value.find(item => item.value === id)?.name || '';
+
+}
 
 function convertNumberToUnit(num: number) {
   // 转为有效数字
@@ -151,8 +173,51 @@ const parsePaymentMethod = function (payset: any) {
   }
 };
 
+const cardRules = reactive({
+  cardid1: [
+    { required: true, message: '请输入卡号', trigger: 'blur' },
+    { min: 3, max: 32, message: '请输入3-32位卡号', trigger: 'blur' },
+  ],
+  cardid2: [
+    { min: 3, max: 32, message: '请输入3-32位卡号', trigger: 'blur' },
+  ]
+})
+
+// 表单数据
+const formData = reactive({
+  title: '',
+  endTime: '',
+  author: '',
+  school_id: "",
+  class_code: "",
+  class_type: "",
+  uploadType: 'file',
+  file: null as File | null,
+  text: '',
+  wordCount: 0,
+  piece: 0,
+  unit_price: 0,
+  total_price: 0,
+  fileName: ''
+})
+
+// 步骤
+const currentStep = ref(1)
+const uploadRef = ref<UploadInstance>()
+
+const handleResize = () => {
+  if (window.innerWidth < 768) {
+    smallp.value = true;
+  } else {
+    smallp.value = false;
+
+  }
+};
+
 // 初始化
 onMounted(async () => {
+  handleResize();
+  window.addEventListener('resize', handleResize);
   const productid = route.query.type as string
 
   if (find == false) {
@@ -187,17 +252,22 @@ onMounted(async () => {
     return;
   }
 
-  console.log(product);
   for (let i = 0; i < endtimeId.value.length; i++) {
     if (endtimeId.value[i] == productid) {
       needEndTime.value = true;
       break;
     }
   }
+  browserType.value = getBrowserType();
+
+  if (isFileFormatSupported(product.value.config.file_types, "txt")) {
+    txtupload.value = true;
+  } else {
+    txtupload.value = false;
+  }
 
   try {
     loading.value = true;
-    browserType.value = getBrowserType();
     let res = await paxios.get("/index/getPaySet");
     if (res.data.code == 0) {
       parsePaymentMethod(res.data.data);
@@ -210,9 +280,39 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
+
+  //获取参数
+  let res1j = await fetch('/wpzp_param.json');
+  let res1 = await res1j.json();
+  if (res1.data.code === 0) {
+    wpzpSchoolId.value = res1.data.school;
+    wpzpClassCode.value = res1.data.classcode;
+    wpzpClassType.value = res1.data.classtype;
+  }
+
+  if (productid == "cqvipzpdxs") {
+    currHasSchool_x.value = true;
+  } else {
+    currHasSchool_x.value = false;
+  }
+  if (productid == "cqvipzpyjs") {
+    currHasSchool.value = true;
+    currHasClassCode.value = true;
+  } else {
+    currHasClassCode.value = false;
+    currHasSchool.value = false;
+  }
+
+  if (productid == "cqvipzpqk") {
+    currHasClassType.value = true;
+  } else {
+    currHasClassType.value = false;
+  }
+
 })
 
 onUnmounted(() => {
+  window.removeEventListener('resize', handleResize);
   if (timer) {
     clearInterval(timer);
     timer = null;
@@ -221,17 +321,7 @@ onUnmounted(() => {
     clearTimeout(timerPay);
     timerPay = null;
   }
-});
-
-function closeQRCodeDialog() {
-  if (timer) {
-    clearInterval(timer);
-    timer = null;
-  }
-}
-
-
-
+})
 
 function handleExceed() {
   ElMessageBox.alert('只能上传一个文件，你可以删除原有文件后再重新上传新文件，或者刷新网页后重试', '错误', {
@@ -267,9 +357,9 @@ async function toUploadFile(file: File) {
 
   try {
     loading.value = true;
-    let res = await paxios.post("/index/getUploadParam", { product_id: product.value.id, shopid: shopId.value })
+    let res = await paxios.post("/check/get_upload_param", { product_id: product.value.id })
     if (res.data.code != 0) {
-      ElMessage.error("上传出错");
+      ElMessage.error(res.data.msg);
       loading.value = false;
       return;
     }
@@ -294,7 +384,7 @@ async function toUploadFile(file: File) {
       loading.value = false;
       return;
     }
-    const res2 = await paxios.post("/index/createCheckOrder", { orderid: orderid, shopid: shopId.value, product_id: product.value.id });
+    const res2 = await paxios.post("/check/create_check_order", { orderid: orderid, product_id: product.value.id });
     if (res2.data.code != 0) {
       ElMessage.error(res2.data.msg);
       loading.value = false;
@@ -338,7 +428,9 @@ async function fileChange(file: UploadFile, uploadFiles: UploadFiles) {
     formData.file = null
     formData.fileName = ''
     formData.wordCount = 0
-    formData.calculatedPrice = 0
+    formData.piece = 0
+    formData.unit_price = 0
+    formData.total_price = 0
     orderid = '';
     return;
   }
@@ -350,7 +442,9 @@ function deleteFile() {
   formData.file = null
   formData.fileName = ''
   formData.wordCount = 0
-  formData.calculatedPrice = 0
+  formData.piece = 0
+  formData.unit_price = 0
+  formData.total_price = 0
   orderid = '';
 }
 
@@ -392,11 +486,14 @@ async function report_info() {
   }
   loading.value = true;
   try {
-    const res = await paxios.post("/index/reportInfo", {
-      orderid: orderid,
+    const res = await paxios.post("/check/report_info", {
+      order_id: orderid,
       title: formData.title,
       author: formData.author,
-      endTime: formData.endTime,
+      end_date: formData.endTime,
+      school_id: formData.school_id,
+      class_code: formData.class_code,
+      class_type: formData.class_type
     });
 
     if (res.data.code != 0) {
@@ -448,12 +545,14 @@ const analyzeFile = async () => {
   let try_count = 1;
   while (true) {
     try {
-      const res = await paxios.post("/index/getCheckOrderStatus", { orderid: orderid });
+      const res = await paxios.post("/check/get_order_status", { orderid: orderid });
       if (res.data.code == 0) {
         if (res.data.data.status == 2) {
           //解析完成
-          formData.wordCount = res.data.data.words;
-          formData.calculatedPrice = res.data.data.total_price / 100;
+          formData.wordCount = res.data.data.word_count;
+          formData.piece = res.data.data.piece; //件数
+          formData.unit_price = res.data.data.unit_price;//单价
+          formData.total_price = res.data.data.total_price;//总价
           break;
         } else if (res.data.data.status == 3) {
           ElMessage.error("解析失败");
@@ -474,6 +573,9 @@ const analyzeFile = async () => {
   }
   loading.value = false;
   if (try_count > 10) {
+    return false;
+  }
+  if (formData.piece == 0) {
     return false;
   }
   return true;
@@ -516,14 +618,12 @@ const nextStep = async () => {
       ElMessage.warning('请输入文本内容')
       return
     }
-    aliQRre.value.qr = "";
-    aliQRre.value.id = "";
-    wxQRre.value.qr = "";
-    wxQRre.value.id = "";
     const success = await analyzeFile()
     if (success) {
       const ret = await report_info();
       if (ret) {
+        cardForm.cardid1 = "";
+        cardForm.cardid2 = "";
         currentStep.value = 2
       }
 
@@ -541,8 +641,6 @@ const resetUpload = () => {
   router.push("/#myproduct")
 }
 
-const paymentMethod = ref('alipay')
-
 const submitOrder = () => {
   // 跳转到报告下载页面
   setTimeout(() => {
@@ -553,11 +651,41 @@ const submitOrder = () => {
   }, 500)
 }
 
-const goBack = () => {
-  router.push('/')
+
+function handleWeChatPay() {
+  paymentMethod.value = 'wechat';
+  payQRCodeTitle.value = '微信扫码支付'
+  confirmPayment();
+}
+function handleAlipayPay() {
+  paymentMethod.value = 'alipay';
+  payQRCodeTitle.value = '支付宝扫码支付'
+  confirmPayment();
 }
 
+function closeQRCodeDialog() {
+  if (timer) {
+    clearInterval(timer);
+    timer = null;
+  }
+}
 
+const confirmPayment = () => {
+
+  qrcodeUrl.value = "";
+
+  // 根据浏览器类型决定支付方式
+  if (browserType.value === 'pc') {
+    // PC端显示二维码
+    showPayQRcode();
+  } else if (browserType.value === 'mobile') {
+    // 移动端调用H5支付
+    processH5Payment();
+  } else if (browserType.value === 'wechat') {
+    // 微信内只支持微信支付
+    processWechatPayment();
+  }
+};
 
 async function showPayQRcode() {
   showPayQRCode.value = true;
@@ -588,7 +716,7 @@ async function showPayQRcode() {
   }
   if (qrcode.length < 3) {
     try {
-      let res = await paxios.post("/index/getPayQRcode", { type: paymentMethod.value, amount: formData.calculatedPrice, modeid: modeid, orderid: orderid });
+      let res = await paxios.post("/index/getPayQRcode", { type: paymentMethod.value, amount: formData.total_price/100, modeid: modeid, orderid: orderid });
       if (res.data.code == 0) {
         if (paymentMethod.value == 'alipay') {
           aliQRre.value.qr = res.data.data.qr;
@@ -641,41 +769,6 @@ async function showPayQRcode() {
 
 }
 
-
-function onBridgeReady(data: any) {
-  // 使用 window 访问 WeixinJSBridge，避免 TypeScript 类型错误
-  if (typeof (window as any).WeixinJSBridge === "undefined") {
-    ElMessage.error('不支持的支付方式');
-  } else {
-    (window as any).WeixinJSBridge.invoke('getBrandWCPayRequest', data,
-      function (res: any) {
-        if (res.err_msg == "get_brand_wcpay_request:ok") {
-          if (timer) {
-            clearInterval(timer);
-          }
-          // 支付成功，轮询查询订单状态确认支付结果
-          timer = setInterval(async () => {
-            try {
-              let ret = await paxios.post("/index/payquery", { payid: payId.value });
-              if (ret.data.code == 0) {
-                if (ret.data.data.status == 1) {
-                  //支付成功
-                  submitOrder();
-                }
-              }
-            } catch (error) {
-              console.error('查询订单状态错误：', error);
-            }
-          }, 5000);
-        } else if (res.err_msg == "get_brand_wcpay_request:cancel") {
-          ElMessage.info('支付已取消');
-        } else {
-          ElMessage.error('支付失败');
-        }
-      });
-  }
-}
-
 async function processH5Payment() {
   let modeid = wechatSet?.modeid;
   if (paymentMethod.value == 'alipay') {
@@ -689,7 +782,7 @@ async function processH5Payment() {
   // 拼接 /report 路径
   const reportUrl = currentDomain + "/report?orderNo=";
   try {
-    let res = await paxios.post("/index/getH5Pay", { type: paymentMethod.value, orderid: orderid, amount: formData.calculatedPrice, modeid: modeid, returnUrl: reportUrl });
+    let res = await paxios.post("/index/getH5Pay", { type: paymentMethod.value, orderid: orderid, amount: formData.total_price/100, modeid: modeid, returnUrl: reportUrl });
     if (res.data.code == 0) {
       payId.value = res.data.data.payid;
       if (paymentMethod.value == 'alipay') {
@@ -747,7 +840,7 @@ async function processWechatPayment() {
     ElMessage.error('支付方式未配置');
     return;
   }
-  let res = await paxios.post("/index/getMPpay", { type: paymentMethod.value, orderid: orderid, amount: formData.calculatedPrice, modeid: modeid, openid: openid.value })
+  let res = await paxios.post("/index/getMPpay", { type: paymentMethod.value, orderid: orderid, amount: formData.total_price/100, modeid: modeid, openid: openid.value })
   if (res.data.code == 0) {
     payId.value = res.data.data.payid;
     let param = {
@@ -782,49 +875,48 @@ async function processWechatPayment() {
 
 }
 
-const confirmPayment = () => {
-
-  qrcodeUrl.value = "";
-
-  // 根据浏览器类型决定支付方式
-  if (browserType.value === 'pc') {
-    // PC端显示二维码
-    showPayQRcode();
-  } else if (browserType.value === 'mobile') {
-    // 移动端调用H5支付
-    processH5Payment();
-  } else if (browserType.value === 'wechat') {
-    // 微信内只支持微信支付
-    processWechatPayment();
+function onBridgeReady(data: any) {
+  // 使用 window 访问 WeixinJSBridge，避免 TypeScript 类型错误
+  if (typeof (window as any).WeixinJSBridge === "undefined") {
+    ElMessage.error('不支持的支付方式');
+  } else {
+    (window as any).WeixinJSBridge.invoke('getBrandWCPayRequest', data,
+      function (res: any) {
+        if (res.err_msg == "get_brand_wcpay_request:ok") {
+          if (timer) {
+            clearInterval(timer);
+          }
+          // 支付成功，轮询查询订单状态确认支付结果
+          timer = setInterval(async () => {
+            try {
+              let ret = await paxios.post("/index/payquery", { payid: payId.value });
+              if (ret.data.code == 0) {
+                if (ret.data.data.status == 1) {
+                  //支付成功
+                  submitOrder();
+                }
+              }
+            } catch (error) {
+              console.error('查询订单状态错误：', error);
+            }
+          }, 5000);
+        } else if (res.err_msg == "get_brand_wcpay_request:cancel") {
+          ElMessage.info('支付已取消');
+        } else {
+          ElMessage.error('支付失败');
+        }
+      });
   }
-};
+}
 
-function handleWeChatPay() {
-  paymentMethod.value = 'wechat';
-  payQRCodeTitle.value = '微信扫码支付'
-  confirmPayment();
-}
-function handleAlipayPay() {
-  paymentMethod.value = 'alipay';
-  payQRCodeTitle.value = '支付宝扫码支付'
-  confirmPayment();
-}
+
 
 </script>
 
 <template>
   <el-config-provider :locale="zhCn">
     <div class="check-page">
-      <!-- 导航栏 -->
-      <div class="navbar">
-        <div class="nav-content">
-          <div class="logo" @click="goBack">
-            <span class="logo-icon">📚</span>
-            <span class="logo-text">论文查重检测系统</span>
-          </div>
-          <ResponsiveNav :customer-service-action="() => showCustomerService = true" />
-        </div>
-      </div>
+
 
       <!-- 主内容 -->
       <div v-loading="loading" element-loading-text="正在处理……" class="main-container">
@@ -837,16 +929,26 @@ function handleAlipayPay() {
             <!-- 已选产品展示 -->
             <div class="selected-product-bar">
               <div class="product-info">
-                <span class="product-icon-mini">
-                  {{ productico }}
-                </span>
+                <div v-if="!smallp">
+                  <span v-if="brand == 'mix'" class="product-icon-mini">
+                    {{ productico }}
+                  </span>
+                  <span v-if="brand == 'wanfang'" class="wanfang-logo">
+                    <img style="width: 100%;" src="/images/wanfang_c.png">
+                  </span>
+                  <span v-if="brand == 'weipu'" class="wanfang-logo">
+                    <img style="width: 100%;" src="/images/weipu_c.png">
+                  </span>
+                </div>
+
                 <div class="product-details">
                   <div class="product-name-mini">
-
                     <span class="version-badge">{{ product.name }}</span>
+                    <span class="version-badge">{{ (product.price / 100) }}元/{{ convertNumberToUnit(product.unit)
+                    }}</span>
                   </div>
-                  <div class="product-price-mini">
-                    {{ (product.price / 100).toFixed(2) }}/{{ convertNumberToUnit(product.unit) }}
+                  <div class="product-description">
+                    {{ product.description }}
                   </div>
                 </div>
               </div>
@@ -869,6 +971,24 @@ function handleAlipayPay() {
                 <el-form-item v-show="needEndTime" label="发表日期">
                   <el-date-picker v-model="formData.endTime" type="date" format="YYYY-MM-DD"
                     value-format="YYYY-MM-DD" />
+                </el-form-item>
+                <el-form-item v-if="currHasSchool" label="学校" prop="school_id">
+                  <el-select-v2 v-model="formData.school_id" filterable :options="schoolOptions" placeholder="请选择学校"
+                    clearable />
+                </el-form-item>
+                <el-form-item v-if="currHasSchool_x" label="学校">
+                  <el-select-v2 v-model="formData.school_id" filterable :options="schoolOptions"
+                    placeholder="请选择学校,可以不填" clearable />
+                </el-form-item>
+                <el-form-item v-if="currHasClassCode" label="学科" prop="class_code">
+                  <el-select v-model="formData.class_code" placeholder="请选择学科" clearable>
+                    <el-option v-for="item in wpzpClassCode" :key="item.value" :label="item.name" :value="item.value" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item v-if="currHasClassType" label="类型" prop="class_type">
+                  <el-select v-model="formData.class_type" placeholder="请选择类型" clearable>
+                    <el-option v-for="item in wpzpClassType" :key="item.value" :label="item.name" :value="item.value" />
+                  </el-select>
                 </el-form-item>
 
 
@@ -939,13 +1059,26 @@ function handleAlipayPay() {
                 }}</span></el-descriptions-item>
                 <el-descriptions-item label="论文标题">{{ formData.title }}</el-descriptions-item>
                 <el-descriptions-item label="作者">{{ formData.author }}</el-descriptions-item>
-                <el-descriptions-item v-show="formData.endTime != ''" label="发表日期">{{ formData.endTime
-                  }}</el-descriptions-item>
-                <el-descriptions-item v-show="formData.fileName" label="文件名">{{ formData.fileName
-                  }}</el-descriptions-item>
-                <el-descriptions-item label="字数">{{ formData.wordCount.toLocaleString() }} 字</el-descriptions-item>
-                <el-descriptions-item :span="2" label="价格">
-                  <span class="price-text">¥{{ formData.calculatedPrice.toFixed(2) }}</span>
+                <el-descriptions-item v-if="formData.endTime != ''" label="发表日期">{{ formData.endTime
+                }}</el-descriptions-item>
+                <el-descriptions-item v-if="formData.fileName" label="文件名">{{ formData.fileName
+                }}</el-descriptions-item>
+                <el-descriptions-item v-if="formData.school_id" label="学校">{{ getschoolbyid(formData.school_id)
+                }}</el-descriptions-item>
+                <el-descriptions-item v-if="formData.class_code" label="学科">{{ getClassCodebyid(formData.class_code)
+                }}</el-descriptions-item>
+                <el-descriptions-item v-if="formData.class_type" label="类型">{{ getClassTypebyid(formData.class_type)
+                }}</el-descriptions-item>
+                <el-descriptions-item v-if="formData.wordCount" label="字数">{{ formData.wordCount.toLocaleString() }}
+                  字</el-descriptions-item>
+                <el-descriptions-item label="件数">
+                  <span>{{ formData.piece }}件</span>
+                </el-descriptions-item>
+                <el-descriptions-item label="单价">
+                  <span>{{ formData.unit_price / 100 }}元</span>
+                </el-descriptions-item>
+                <el-descriptions-item label="总价">
+                  <span class="price-text">{{ formData.total_price / 100 }}元</span>
                 </el-descriptions-item>
               </el-descriptions>
 
@@ -963,6 +1096,7 @@ function handleAlipayPay() {
               <div v-if="(!isSupportAlipay) && (!isSupportWechat)">
                 <el-alert :title="payWaring" type="warning" />
               </div>
+
             </div>
           </div>
         </div>
@@ -981,43 +1115,22 @@ function handleAlipayPay() {
         </div>
       </div>
 
-      <!-- 底部 -->
-      <div class="footer">
-        <p>© 2026 论文查重检测系统 版权所有</p>
-        <p>多个权威品牌官方授权合作伙伴</p>
-      </div>
-
-      <!-- 客服二维码弹窗 -->
-      <el-dialog v-model="showCustomerService" title="扫码添加客服微信" width="360px" center>
-        <div class="qr-dialog-content">
-          <div class="qr-image-container">
-            <img :src="custom.url" alt="客服二维码" class="qr-code-image" />
-          </div>
-          <p class="qr-tip">使用微信扫描上方二维码添加客服</p>
-          <p class="qr-tip-sub">工作日 9:00-21:00 在线服务</p>
-        </div>
-        <template #footer>
-          <span class="dialog-footer">
-            <el-button @click="showCustomerService = false">关闭</el-button>
-          </span>
-        </template>
-      </el-dialog>
-      <el-dialog @close="closeQRCodeDialog" v-model="showPayQRCode" :title="payQRCodeTitle" width="360px" center>
-        <div class="qr-dialog-content">
-          <div class="qr-image-container">
-            <img :src="qrcodeUrl" alt="支付二维码" class="qr-code-image" />
-          </div>
-          <div>订单号：{{ payId }}</div>
-          <div class="qrcode-amount">支付金额: ¥{{ formData.calculatedPrice.toFixed(2) }}</div>
-          <div><el-button @click="submitOrder" type="success">已经完成支付</el-button></div>
-        </div>
-        <template #footer>
-          <span class="dialog-footer">
-            <el-button @click="showPayQRCode = false">关闭</el-button>
-          </span>
-        </template>
-      </el-dialog>
     </div>
+    <el-dialog @close="closeQRCodeDialog" v-model="showPayQRCode" :title="payQRCodeTitle" width="360px" center>
+      <div class="qr-dialog-content">
+        <div class="qr-image-container">
+          <img :src="qrcodeUrl" alt="支付二维码" class="qr-code-image" />
+        </div>
+        <div>订单号：{{ payId }}</div>
+        <div class="qrcode-amount">支付金额: ¥{{ (formData.total_price/100).toFixed(2) }}元</div>
+        <div><el-button @click="submitOrder" type="success">已经完成支付</el-button></div>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showPayQRCode = false">关闭</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </el-config-provider>
 </template>
 
@@ -1055,46 +1168,12 @@ function handleAlipayPay() {
 }
 
 .check-page {
-  min-height: 100vh;
+  min-height: calc(100vh - 188px);
   display: flex;
   flex-direction: column;
-  background: #f5f7fa;
 }
 
-.navbar {
-  background: #fff;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-}
 
-.nav-content {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 20px;
-  height: 70px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  cursor: pointer;
-}
-
-.logo-icon {
-  font-size: 32px;
-}
-
-.logo-text {
-  font-size: 20px;
-  font-weight: 600;
-  color: #333;
-}
 
 .main-container {
   flex: 1;
@@ -1145,6 +1224,16 @@ function handleAlipayPay() {
   justify-content: center;
 }
 
+.wanfang-logo {
+  width: 50px;
+  height: 75px;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .product-details {
   display: flex;
   flex-direction: column;
@@ -1169,7 +1258,7 @@ function handleAlipayPay() {
   font-weight: normal;
 }
 
-.product-price-mini {
+.product-description {
   font-size: 14px;
   color: rgba(255, 255, 255, 0.9);
 }
@@ -1177,10 +1266,19 @@ function handleAlipayPay() {
 .selected-product-bar .el-button {
   color: #fff;
   font-size: 15px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 20px;
+  padding: 8px 20px;
+  backdrop-filter: blur(4px);
+  transition: all 0.3s ease;
 }
 
 .selected-product-bar .el-button:hover {
   color: #ffd700;
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 215, 0, 0.5);
+  transform: scale(1.05);
 }
 
 .confirm-alert {
@@ -1202,18 +1300,6 @@ function handleAlipayPay() {
   display: flex;
   gap: 12px;
   justify-content: center;
-}
-
-.footer {
-  background: #333;
-  padding: 20px 0;
-  text-align: center;
-  margin-top: 40px;
-}
-
-.footer p {
-  color: #999;
-  margin: 4px 0;
 }
 
 /* 二维码弹窗 */
@@ -1249,6 +1335,11 @@ function handleAlipayPay() {
 }
 
 @media (max-width: 768px) {
+
+  .selected-product-bar {
+    padding: 10px 10px;
+  }
+
   .price-text {
     font-size: 20px;
   }

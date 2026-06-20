@@ -9,12 +9,11 @@ import {
   CircleClose,
   Delete
 } from '@element-plus/icons-vue'
-import ResponsiveNav from '@/components/ResponsiveNav.vue'
-import { useWebsitConfigStore } from '@/stores/websitConfig'
 import { storeToRefs } from "pinia"
 import { paxios } from '@/utils/paxios'
+import { useProductConfigStore } from '@/stores/productConfig'
 
-const { custom, webIsInit, shopId } = storeToRefs(useWebsitConfigStore());
+const { wanfang, weipu, zhiwang, endtimeId, brand } = storeToRefs(useProductConfigStore());
 
 // ElMessage已通过unplugin-auto-import自动导入，无需手动导入
 
@@ -33,13 +32,13 @@ enum OrderStatus {
 
 interface OrderInfo {
   orderNo: string
+  product: string
   status: OrderStatus
   orderid: string
   version: string
   title: string
   author: string
-  wordCount: number
-  price: number
+  payTime: string
   createTime: string
   reportUrl?: string
   failReason?: string
@@ -50,32 +49,50 @@ const orderInfo = ref<OrderInfo | null>(null)
 const loading = ref(false)
 const autoRefreshTimer = ref<number | null>(null)
 
-const showCustomerService = ref(false)
 
+function getproductName(productid: string) {
+
+  for (let i = 0; i < wanfang.value.length; i++) {
+    if (wanfang.value[i].id == productid) {
+      return wanfang.value[i].name;
+    }
+  }
+
+
+  for (let i = 0; i < weipu.value.length; i++) {
+    if (weipu.value[i].id == productid) {
+      return weipu.value[i].name;
+    }
+  }
+
+
+  for (let i = 0; i < zhiwang.value.length; i++) {
+    if (zhiwang.value[i].id == productid) {
+      return zhiwang.value[i].name;
+    }
+  }
+
+  return '';
+
+}
 
 function getstatusStr(status: number) {
   switch (status) {
-    case 0:
-    case 1:
-    case 2:
-    case 3:
-      {
-        return OrderStatus.NOT_PAY;
-      }
+
     case 4:
     case 5:
+    case 6:
       {
         return OrderStatus.PROCESSING;
       }
-    case 6:
     case 7:
       {
         return OrderStatus.FAILED;
       }
-    case 8:
-      {
-        return OrderStatus.COMPLETED;
-      }
+    case 8: {
+      return OrderStatus.COMPLETED;
+    }
+
     case 9:
       {
         return OrderStatus.REFUND;
@@ -94,47 +111,44 @@ const queryOrder = async () => {
     ElMessage.warning('请输入订单号')
     return
   }
-
   loading.value = true
-
-
   try {
-    let res = await paxios.post("/index/getCheckOrderByPayId", { payid: orderNo.value.trim() });
+    let res = await paxios.post("/check/get_status_by_payid", { payid: orderNo.value.trim() });
     if (res.data.code != 0) {
-      ElMessageBox.alert('该订单不存在，请确定订单号', '错误', {
+      ElMessageBox.alert('订单不存在，请确定订单号', '错误', {
         confirmButtonText: '确定'
       });
-      orderInfo.value = {
-        orderNo: orderNo.value.trim(),
-        status: OrderStatus.NOT_FOUND,
-        orderid: '',
-        version: '',
-        title: '',
-        author: '',
-        wordCount: 0,
-        price: 0,
-        createTime: '',
-        reportUrl: ''
-      }
+      loading.value = false
       return;
     }
-    if (res.data.data.status < 4) {
-      ElMessageBox.alert('该订单未付款，请确定订单号', '错误', {
+    if (res.data.data.status == 0) {
+      ElMessageBox.alert('订单没有提交文章', '错误', {
         confirmButtonText: '确定'
       });
+      loading.value = false
+      return;
+    }
+
+    if (res.data.data.status < 4) {
+      ElMessageBox.alert('订单未支付，请咨询客服', '错误', {
+        confirmButtonText: '确定'
+      });
+      loading.value = false
+      return;
     }
 
     let orderstatus = getstatusStr(res.data.data.status);
+    let product = getproductName(res.data.data.product_id);
 
     orderInfo.value = {
       orderNo: orderNo.value.trim(),
+      product: product,
       status: orderstatus,
       orderid: res.data.data.id,
       version: '',
       title: res.data.data.title,
       author: res.data.data.author,
-      wordCount: res.data.data.words,
-      price: (res.data.data.total_price / 100),
+      payTime: res.data.data.pay_time,
       createTime: res.data.data.create_time,
       reportUrl: res.data.data.report_url,
     }
@@ -148,9 +162,6 @@ const queryOrder = async () => {
   } catch (err) {
     ElMessage.error("查询订单信息出错");
   }
-
-
-
   loading.value = false
 }
 
@@ -185,6 +196,8 @@ const downloadReport = () => {
     // 模拟下载
     ElMessage.success('开始下载报告...')
     window.open(orderInfo.value.reportUrl, '_blank')
+  } else {
+    ElMessage.error('报告不存在')
   }
 }
 
@@ -200,7 +213,7 @@ const deleteReport = () => {
   )
     .then(async () => {
       try {
-        let res = await paxios.post("/index/deleteReport", { orderid: orderInfo.value?.orderid })
+        let res = await paxios.post("/check/delete_report", { orderid: orderInfo.value?.orderid })
         if (res.data.code == 0) {
           if (orderInfo.value) {
             orderInfo.value.status = OrderStatus.DELETE;
@@ -218,35 +231,11 @@ const deleteReport = () => {
     })
 }
 
-// 申请退款
-const handleRefund = async () => {
-  try {
-    let res = await paxios.post("/index/selfRefund", { orderid: orderInfo.value?.orderid });
-    if (res.data.code == 0) {
-      ElMessageBox.alert('钱将原路返回', '提示', {
-        confirmButtonText: '确认',
-      })
-      if (orderInfo.value) {
-        orderInfo.value.status = OrderStatus.REFUND;
-      }
-    } else {
-      ElMessage.error("申请退款失败," + res.data.msg + ",有任何疑问请联系客服");
-    }
-  } catch (err) {
-    ElMessage.error("申请退款失败，请联系客服退款");
-  }
-}
-
 
 
 // 返回首页
 const goBack = () => {
   router.push('/')
-}
-
-// 联系客服
-const handleCustomerServiceDialog = () => {
-  showCustomerService.value = true
 }
 
 // 组件挂载时
@@ -263,59 +252,54 @@ onMounted(() => {
 onUnmounted(() => {
   stopAutoRefresh()
 })
+
+const handleRefund = async () => {
+  try {
+    let res = await paxios.post("/check/self_refund", { orderid: orderInfo.value?.orderid });
+    if (res.data.code == 0) {
+      ElMessageBox.alert('钱将原路返回', '提示', {
+        confirmButtonText: '确认',
+      })
+      if (orderInfo.value) {
+        orderInfo.value.status = OrderStatus.REFUND;
+      }
+    } else {
+      ElMessage.error("申请退款失败," + res.data.msg + ",有任何疑问请联系客服");
+    }
+  } catch (err) {
+    ElMessage.error("申请退款失败，请联系客服退款");
+  }
+}
+
 </script>
 
 <template>
   <div class="report-page">
-    <!-- 导航栏 -->
-    <div class="navbar">
-      <div class="nav-content">
-        <div class="logo" @click="goBack">
-          <span class="logo-icon">📚</span>
-          <span class="logo-text">论文查重检测系统</span>
-        </div>
-        <ResponsiveNav :customer-service-action="() => showCustomerService = true" />
-      </div>
-    </div>
+
 
     <!-- 主内容 -->
     <div class="main-container">
       <!-- 页面标题 -->
       <div class="page-header">
         <h1>报告查询</h1>
-        <p class="header-desc">填写检测的"订单编号"，点击查询报告，然后下载对应的检测报告！</p>
       </div>
-
+      <hr class="queryhr" />
 
       <div class="search-section">
         <div class="search-box">
-          <el-form :inline="true" class="queryform">
+          <el-form :inline="true" class="queryform" label-width="20px">
             <el-form-item>
-              <el-input v-model="orderNo" placeholder="请输入订单号"></el-input>
+              <el-input v-model="orderNo" placeholder="请输入卡号"></el-input>
             </el-form-item>
             <el-form-item>
               <el-button type="primary" @click="queryOrder">查询</el-button>
             </el-form-item>
-            <el-form-item style="">
-             
-                <el-popover placement="bottom-end" trigger="hover" :popper-style="{ minWidth: '100px', width: 'auto' }">
-                  <img class="popimg" src="/images/wxpayid.png" />
-                  <template #reference>
-                    <span class="querypopover"><img class="pppoprefimg" src="/images/reportwx.png" />微信订单号?</span>
-                  </template>
-                </el-popover>
-             
-            </el-form-item>
-            <el-form-item>
-                <el-popover placement="bottom-end" trigger="hover" :popper-style="{ minWidth: '100px', width: 'auto' }">
-                  <img class="popimg" src="/images/zfbpayid.png" />
-                  <template #reference>
-                    <span class="querypopover"><img class="pppoprefimg" src="/images/reportzfb.png" />支付宝订单号?</span>
-                  </template>
-                </el-popover>
-            </el-form-item>
           </el-form>
-          <hr class="queryhr" />
+          <el-alert type="primary" :closable="false">
+            <template #default>
+              填写检测时的“卡号”，查询报告。如果一次检测用了多个卡号，任意一个卡号即可查询报告。<span style="color:red">报告仅保留7天，请及时下载报告。</span>
+            </template>
+          </el-alert>
         </div>
       </div>
 
@@ -343,7 +327,6 @@ onUnmounted(() => {
 
           <div class="action-buttons">
             <el-button type="primary" @click="goBack">去提交检测</el-button>
-            <el-button @click="handleCustomerServiceDialog">联系客服</el-button>
           </div>
         </div>
 
@@ -367,7 +350,6 @@ onUnmounted(() => {
 
           <div class="action-buttons">
             <el-button type="primary" @click="goBack">去提交检测</el-button>
-            <el-button @click="handleCustomerServiceDialog">联系客服</el-button>
           </div>
         </div>
 
@@ -383,16 +365,19 @@ onUnmounted(() => {
           </div>
 
           <div class="order-info">
-            <div class="info-title">{{ orderInfo.title }}</div>
+            <div class="info-title"><span class="info-product">{{ orderInfo.product }}</span>{{ orderInfo.title }}</div>
             <div class="info-details">
               <div class="detail-row">
                 <span class="detail-label">作者：</span>
                 <span class="detail-value">{{ orderInfo.author }}</span>
                 <span class="detail-spacer"></span>
                 <span class="detail-label">付款时间：</span>
-                <span class="detail-value">{{ orderInfo.createTime }}</span>
+                <span class="detail-value">{{ orderInfo.payTime }}</span>
               </div>
             </div>
+          </div>
+          <div class="tip-box">
+            <el-alert title="预计半小时左右出报告" type="primary" :closable="false" />
           </div>
 
           <div class="tip-box info">
@@ -406,7 +391,6 @@ onUnmounted(() => {
             <el-button type="primary" @click="handleRefresh" :icon="Refresh">
               刷新状态
             </el-button>
-            <el-button @click="handleCustomerServiceDialog">联系客服</el-button>
           </div>
         </div>
 
@@ -422,22 +406,17 @@ onUnmounted(() => {
           </div>
 
           <div class="order-info">
-            <div class="info-title">{{ orderInfo.title }}</div>
+            <div class="info-title"><span class="info-product">{{ orderInfo.product }}</span>{{ orderInfo.title }}</div>
             <div class="info-details">
               <div class="detail-row">
                 <span class="detail-label">作者：</span>
                 <span class="detail-value">{{ orderInfo.author }}</span>
                 <span class="detail-spacer"></span>
                 <span class="detail-label">付款时间：</span>
-                <span class="detail-value">{{ orderInfo.createTime }}</span>
+                <span class="detail-value">{{ orderInfo.payTime }}</span>
               </div>
             </div>
           </div>
-
-          <div class="tip-box">
-            <el-alert title="报告仅保留7天，请及时下载报告" type="warning" :closable="false" />
-          </div>
-
           <div class="action-buttons">
             <el-button type="primary" size="large" @click="downloadReport" :icon="Download">
               下载报告
@@ -459,14 +438,14 @@ onUnmounted(() => {
           </div>
 
           <div class="order-info">
-            <div class="info-title">{{ orderInfo.title }}</div>
+            <div class="info-title"><span class="info-product">{{ orderInfo.product }}</span>{{ orderInfo.title }}</div>
             <div class="info-details">
               <div class="detail-row">
                 <span class="detail-label">作者：</span>
                 <span class="detail-value">{{ orderInfo.author }}</span>
                 <span class="detail-spacer"></span>
                 <span class="detail-label">付款时间：</span>
-                <span class="detail-value">{{ orderInfo.createTime }}</span>
+                <span class="detail-value">{{ orderInfo.payTime }}</span>
               </div>
             </div>
           </div>
@@ -485,23 +464,22 @@ onUnmounted(() => {
           </div>
 
           <div class="order-info">
-            <div class="info-title">{{ orderInfo.title }}</div>
+            <div class="info-title"><span class="info-product">{{ orderInfo.product }}</span>{{ orderInfo.title }}</div>
             <div class="info-details">
               <div class="detail-row">
                 <span class="detail-label">作者：</span>
                 <span class="detail-value">{{ orderInfo.author }}</span>
                 <span class="detail-spacer"></span>
                 <span class="detail-label">付款时间：</span>
-                <span class="detail-value">{{ orderInfo.createTime }}</span>
+                <span class="detail-value">{{ orderInfo.payTime }}</span>
               </div>
             </div>
           </div>
-
           <div class="action-buttons">
             <el-button type="danger" @click="handleRefund">
               申请退款
             </el-button>
-            <el-button @click="handleCustomerServiceDialog">联系客服</el-button>
+            <!-- <el-button @click="handleCustomerServiceDialog">联系客服</el-button> -->
           </div>
         </div>
 
@@ -517,14 +495,14 @@ onUnmounted(() => {
           </div>
 
           <div class="order-info">
-            <div class="info-title">{{ orderInfo.title }}</div>
+            <div class="info-title"><span class="info-product">{{ orderInfo.product }}</span>{{ orderInfo.title }}</div>
             <div class="info-details">
               <div class="detail-row">
                 <span class="detail-label">作者：</span>
                 <span class="detail-value">{{ orderInfo.author }}</span>
                 <span class="detail-spacer"></span>
                 <span class="detail-label">付款时间：</span>
-                <span class="detail-value">{{ orderInfo.createTime }}</span>
+                <span class="detail-value">{{ orderInfo.payTime }}</span>
               </div>
             </div>
           </div>
@@ -539,34 +517,6 @@ onUnmounted(() => {
         <p>查询中...</p>
       </div>
     </div>
-
-    <div style="margin: 10px auto;max-width: 600px;">
-        <el-alert title="报告仅保留7天，请及时下载报告" type="error" :closable="false" />
-      </div>
-
-    <!-- 底部 -->
-    <div class="footer">
-      <div class="footer-content">
-        <p>© 2026 论文查重检测系统 版权所有</p>
-        <p>多个权威品牌官方授权合作伙伴</p>
-      </div>
-    </div>
-
-    <!-- 客服二维码弹窗 -->
-    <el-dialog v-model="showCustomerService" title="扫码添加客服微信" width="360px" center>
-      <div class="qr-dialog-content">
-        <div class="qr-image-container">
-          <img :src="custom.url" alt="客服二维码" class="qr-code-image" />
-        </div>
-        <p class="qr-tip">使用微信扫描上方二维码添加客服</p>
-        <p class="qr-tip-sub">工作日 9:00-21:00 在线服务</p>
-      </div>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="showCustomerService = false">关闭</el-button>
-        </span>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -575,18 +525,45 @@ onUnmounted(() => {
   margin-right: 8px !important;
 }
 
+:deep(.el-form--inline .el-input__wrapper) {
+  min-width: 200px;
+  width: auto;
+}
+
+.search-box :deep(.el-input__wrapper) {
+  min-width: 280px;
+  transition: min-width 0.3s ease;
+}
+
+@media (max-width: 768px) {
+  .search-box :deep(.el-input__wrapper) {
+    min-width: 200px;
+  }
+}
+
+@media (max-width: 480px) {
+  .search-box :deep(.el-input__wrapper) {
+    min-width: 160px;
+  }
+}
+
+.queryhr {
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
 .pppoprefimg {
-    width: 21px;
-    vertical-align: middle;
-    margin-right: 5px;
+  width: 21px;
+  vertical-align: middle;
+  margin-right: 5px;
 }
 
 .querypopover {
-    margin-left: 25px;
+  margin-left: 25px;
 }
 
 .querypopover .popimg {
-    max-width: 100%;
+  max-width: 100%;
 }
 
 .popover-content {
@@ -601,45 +578,10 @@ onUnmounted(() => {
 }
 
 .report-page {
-  min-height: 100vh;
+  min-height: calc(100vh - 188px);
   display: flex;
   flex-direction: column;
   background: #f5f7fa;
-}
-
-.navbar {
-  background: #fff;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-}
-
-.nav-content {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 0 20px;
-  height: 70px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  cursor: pointer;
-}
-
-.logo-icon {
-  font-size: 32px;
-}
-
-.logo-text {
-  font-size: 22px;
-  font-weight: 600;
-  color: #333;
 }
 
 .main-container {
@@ -776,6 +718,13 @@ onUnmounted(() => {
   border-bottom: 1px solid #e4e7ed;
 }
 
+.info-product {
+  font-size: 14px;
+  font-weight: 400;
+  color: blue;
+  margin-right: 10px;
+}
+
 .info-details {
   padding: 0;
 }
@@ -891,21 +840,7 @@ onUnmounted(() => {
   margin: 0;
 }
 
-/* 底部 */
-.footer {
-  background: #333;
-  padding: 30px 20px;
-}
 
-.footer-content {
-  text-align: center;
-}
-
-.footer-content p {
-  color: #999;
-  margin: 8px 0;
-  font-size: 14px;
-}
 
 @media (max-width: 768px) {
   .page-header h1 {

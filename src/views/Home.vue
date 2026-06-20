@@ -1,18 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import ResponsiveNav from '@/components/ResponsiveNav.vue'
-import { useWebsitConfigStore } from '@/stores/websitConfig'
 import { useProductConfigStore } from '@/stores/productConfig'
 import { storeToRefs } from "pinia"
-import { paxios } from '@/utils/paxios'
 
-
-const { custom, webIsInit, apiUrl, shopId } = storeToRefs(useWebsitConfigStore());
-const { wanfang, weipu, zhiwang } = storeToRefs(useProductConfigStore());
+const { wanfang, weipu, zhiwang, brand } = storeToRefs(useProductConfigStore());
 
 const router = useRouter()
-const showCustomerService = ref(false)
 const showWanfang = ref(false)
 const showWeipu = ref(false)
 const showZhiwang = ref(false)
@@ -20,6 +14,7 @@ const wanfangdes = ref("万方文献相似性查重检测服务采用科学先�
 const weipudes = ref("维普论文检测系统入口提供24小时在线论文查重，可以快速准确地检测出毕业论文，博士硕士论文，期刊论文等论文中过度和不当的引用及抄袭伪造篡改等学术不端行为。 检测报告支持官网验证真伪。 维普论文查重有多个版本，维普大学生版，维普研究生版，维普职称版。满足各类人群的需要。")
 const zhiwangdes = ref("")
 const pinpdes = ref('');
+const systemtitle = ref('论文查重检测系统');
 // 跳转到检测页面
 const goToCheck = (type: string) => {
   if (type.length < 2) {
@@ -60,6 +55,13 @@ function convertNumberToUnit(num: number) {
 }
 
 onMounted(() => {
+  if(brand.value == 'wanfang'){
+    systemtitle.value = '万方论文检测系统'
+  }else if(brand.value == 'weipu'){
+    systemtitle.value = '维普论文检测系统'
+  }else if(brand.value == 'zhiwang'){
+    systemtitle.value = '知网论文检测系统'
+  }
   if (Array.isArray(wanfang.value) && wanfang.value.length) {
     showWanfang.value = true;
     if (pinpdes.value.length > 1) {
@@ -95,35 +97,24 @@ onMounted(() => {
 
 <template>
   <div class="home-page">
-    <!-- 导航栏 -->
-    <div class="navbar">
-      <div class="nav-content">
-        <div class="logo">
-          <span class="logo-icon">📚</span>
-          <span class="logo-text">论文查重检测系统</span>
-        </div>
-        <ResponsiveNav :customer-service-action="() => showCustomerService = true" />
-      </div>
-    </div>
-
     <!-- Hero区域 -->
     <div class="hero-section">
       <div class="hero-content">
         <div class="hero-text">
           <h1 class="hero-title">
 
-            <span class="gradient-text">论文检测系统</span>
+            <span class="gradient-text">{{ systemtitle }}</span>
           </h1>
           <p class="hero-desc">
             专业、安全、快速的论文查重与AIGC检测服务
             <br>
             帮助您轻松通过论文检测，学术之路更顺畅
           </p>
-          <p class="pinp-desc">
+          <p v-if="brand == 'mix'" class="pinp-desc">
             我们提供多个权威品牌<span class="pinp-list">{{ pinpdes }}</span>
           </p>
           <p class="baoz-desc">
-            报告支持官网验证真伪
+            报告支持验证真伪
           </p>
 
           <div class="trust-tags">
@@ -166,12 +157,12 @@ onMounted(() => {
     <!-- 产品介绍 -->
     <div id="myproduct" class="products-section">
       <div class="section-title">
-        <h2>权威检测产品</h2>
+        <h2>选择产品</h2>
         <p>满足不同学术场景的检测需求</p>
       </div>
       <!--产品列表-->
       <div v-if="showWanfang">
-        <el-alert :title="wanfangdes" type="info" effect="dark" :closable="false"></el-alert>
+        <el-alert v-if="brand == 'mix'" :title="wanfangdes" type="info" effect="dark" :closable="false"></el-alert>
         <el-row>
           <el-col v-for="item in wanfang" :key="item.id" :xs="24" :sm="12" :md="12" :lg="6" :xl="6">
 
@@ -181,10 +172,10 @@ onMounted(() => {
               </div>
               <hr />
               <h4>{{ item.name }}</h4>
-              <div style="padding: 5px 15px; min-height: 110px;">
+              <div style="padding: 5px 15px; min-height: 80px;">
                 <p>{{ item.description }}</p>
               </div>
-              <h5>{{ (item.price / 100).toFixed(2) }}/{{ convertNumberToUnit(item.unit) }}</h5>
+              <h5>{{ (item.price / 100).toFixed(2) }}元/{{ convertNumberToUnit(item.unit) }}</h5>
               <div style="text-align: center">
                 <el-button type="primary" @click="goToCheck(item.id)">去检测</el-button>
               </div>
@@ -193,20 +184,19 @@ onMounted(() => {
         </el-row>
       </div>
       <div v-if="showWeipu">
-        <el-alert :title="weipudes" type="info" effect="dark" :closable="false"></el-alert>
         <el-row>
           <el-col v-for="item in weipu" :key="item.id" :xs="24" :sm="12" :md="12" :lg="6" :xl="6">
 
-            <div class="checkitem">
+           <div class="checkitem">
               <div style="text-align: center;margin-top: 10px">
                 <img :src="item.img">
               </div>
               <hr />
               <h4>{{ item.name }}</h4>
-              <div style="padding: 5px 15px; min-height: 110px;">
+              <div style="padding: 5px 15px; min-height: 80px;">
                 <p>{{ item.description }}</p>
               </div>
-              <h5>{{ (item.price / 100).toFixed(2) }}/{{ convertNumberToUnit(item.unit) }}</h5>
+              <h5>{{ (item.price / 100).toFixed(2) }}元/{{ convertNumberToUnit(item.unit) }}</h5>
               <div style="text-align: center">
                 <el-button type="primary" @click="goToCheck(item.id)">去检测</el-button>
               </div>
@@ -225,10 +215,10 @@ onMounted(() => {
               </div>
               <hr />
               <h4>{{ item.name }}</h4>
-              <div style="padding: 5px 15px; min-height: 110px;">
+              <div style="padding: 5px 15px; min-height: 80px;">
                 <p>{{ item.description }}</p>
               </div>
-              <h5>{{ (item.price / 100).toFixed(2) }}/{{ convertNumberToUnit(item.unit) }}</h5>
+              <h5>{{ (item.price / 100).toFixed(2) }}元/{{ convertNumberToUnit(item.unit) }}</h5>
               <div style="text-align: center">
                 <el-button type="primary" @click="goToCheck(item.id)">去检测</el-button>
               </div>
@@ -240,87 +230,14 @@ onMounted(() => {
 
     </div>
 
-    <!-- 底部 -->
-    <div class="footer">
-      <div class="footer-content">
-        <div class="footer-links">
-          <el-link @click="router.push('/')">首页</el-link>
-          <el-link @click="router.push('/#myproduct')">论文查重</el-link>
-          <el-link @click="router.push('/report')">报告下载</el-link>
-          <el-link @click="router.push('/faq')">常见问题</el-link>
-        </div>
-        <div class="footer-copy">
-          <p>© 2026 论文查重检测系统 版权所有</p>
-          <p>多个权威品牌官方授权合作伙伴</p>
-        </div>
-      </div>
-    </div>
 
-    <!-- 客服二维码弹窗 -->
-    <el-dialog v-model="showCustomerService" title="扫码添加客服微信" width="360px" center>
-      <div class="qr-dialog-content">
-        <div class="qr-image-container">
-          <img :src="custom.url" alt="客服二维码" class="qr-code-image" />
-        </div>
-        <p class="qr-tip">使用微信扫描上方二维码添加客服</p>
-        <p class="qr-tip-sub">工作日 9:00-21:00 在线服务</p>
-      </div>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="showCustomerService = false">关闭</el-button>
-        </span>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
 <style scoped>
-.home-page {
-  min-height: 100vh;
-  background: #f5f7fa;
+.home-page{
+  min-height: calc(100vh - 188px);
 }
-
-/* 导航栏 */
-.navbar {
-  background: #fff;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-}
-
-.nav-content {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 0 20px;
-  height: 70px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.logo-icon {
-  font-size: 36px;
-}
-
-.logo-text {
-  font-size: 22px;
-  font-weight: 600;
-  color: #333;
-}
-
-.nav-menu {
-  display: flex;
-  gap: 16px;
-  align-items: center;
-}
-
 /* Hero区域 */
 .hero-section {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -607,75 +524,6 @@ onMounted(() => {
 }
 
 
-
-
-
-
-
-/* 二维码弹窗 */
-.qr-dialog-content {
-  text-align: center;
-  padding: 20px 0;
-}
-
-.qr-image-container {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 20px;
-}
-
-.qr-code-image {
-  width: 250px;
-  height: 250px;
-  border-radius: 12px;
-  border: 2px solid #e4e7ed;
-}
-
-.qr-tip {
-  font-size: 16px;
-  color: #333;
-  margin-bottom: 8px;
-  font-weight: 500;
-}
-
-.qr-tip-sub {
-  font-size: 14px;
-  color: #999;
-  margin: 0;
-}
-
-/* 底部 */
-.footer {
-  background: #333;
-  padding: 40px 20px;
-}
-
-.footer-content {
-  max-width: 1200px;
-  margin: 0 auto;
-  text-align: center;
-}
-
-.footer-links {
-  margin-bottom: 24px;
-}
-
-.footer-links .el-link {
-  color: #999;
-  margin: 0 16px;
-  font-size: 15px;
-}
-
-.footer-links .el-link:hover {
-  color: #fff;
-}
-
-.footer-copy p {
-  color: #999;
-  margin: 8px 0;
-  font-size: 14px;
-}
-
 /* 响应式设计 */
 @media (max-width: 1024px) {
   .hero-content {
@@ -694,9 +542,6 @@ onMounted(() => {
   .trust-tags {
     justify-content: center;
   }
-
-
-
 }
 
 @media (max-width: 768px) {
@@ -727,43 +572,121 @@ onMounted(() => {
   .image-placeholder {
     display: none;
   }
+}
 
+@media (max-width: 560px) {
+  .wanfang-logo-big {
+    display: none;
+  }
 
-
-
+  .wanfang-logo-small {
+    display: block;
+  }
 }
 
 @media (max-width: 480px) {
   .hero-section {
     padding: 40px 16px;
   }
+
 }
 
 /**产品列表 */
 .checkitem {
-  margin: 10px 10px 10px 10px;
-  padding: 5px;
-  background-color: #F8F8FF;
-  border: 1px solid darkslategray;
-  border-radius: 10px;
+  margin: 15px 10px;
+  padding: 20px;
+  background: linear-gradient(145deg, #ffffff 0%, #f8f9ff 100%);
+  border: 1px solid #e8ecf4;
+  border-radius: 16px;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.08);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.checkitem::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.checkitem:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 35px rgba(102, 126, 234, 0.18);
+  border-color: #667eea;
+  background: #abf7be;
+}
+
+.checkitem:hover::before {
+  opacity: 1;
+}
+
+.checkitem img {
+  transition: transform 0.3s ease;
+  max-width: 100%;
+}
+
+.checkitem:hover img {
+  transform: scale(1.05);
+}
+
+.checkitem hr {
+  border: none;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #e0e4ee, transparent);
+  margin: 15px 0;
 }
 
 .checkitem h4 {
-  font-weight: bold;
-  font-size: 24px;
-  color: black;
-  margin-top: 3px;
-  margin-bottom: 8px;
-  margin-left: 2px;
+  font-weight: 600;
+  font-size: 18px;
+  color: #2c3e50;
+  margin-top: 5px;
+  margin-bottom: 10px;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.checkitem p {
+  font-size: 14px;
+  color: #6b7c93;
+  line-height: 1.7;
+  text-align: justify;
 }
 
 .checkitem h5 {
-  font-weight: bold;
-  color: red;
+  font-weight: 600;
+  color: #e74c3c;
   text-align: center;
-  font-size: 18px;
-  margin-top: 3px;
-  margin-bottom: 8px;
-  margin-left: 2px;
+  font-size: 20px;
+  margin: 15px 0;
+  padding: 8px 0;
+  background: linear-gradient(135deg, #fff5f5 0%, #fff 100%);
+  border-radius: 8px;
+  border: 1px dashed #fadbd8;
+}
+
+.checkitem :deep(.el-button) {
+  width: 100%;
+  padding: 12px 24px;
+  font-size: 15px;
+  font-weight: 500;
+  border-radius: 25px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+.checkitem :deep(.el-button:hover) {
+  background: linear-gradient(135deg, #5a6fd6 0%, #6a4190 100%);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+  transform: scale(1.02);
 }
 </style>

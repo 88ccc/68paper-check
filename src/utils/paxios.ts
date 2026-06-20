@@ -30,6 +30,14 @@ paxios.interceptors.request.use(function (config: any) {
         const { apiUrl } = websitConfigStore
         baseURL = apiUrl;
     }
+    let aid = null;
+    if (config.url.startsWith("/check")) {
+       aid = window.$useraid;
+    }
+    if (aid) {
+        config.headers.aid = aid
+    }
+    console.log(config)
     config.url = baseURL + config.url
     
     return config;

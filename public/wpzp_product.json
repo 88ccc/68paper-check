@@ -1,0 +1,39 @@
+{
+    "end_time_id":[
+        {
+            "id":"wanfangzc"
+        },{
+            "id":"cqvipzc"
+        }
+    ],
+    "weipu":[
+        {
+            "id":"cqvipzpdxs",
+            "name":"维普智评-大学生版",
+            "price":0,
+            "unit":0,
+            "img":"/images/cqvip.png",
+            "description":"适用于本科、专科 毕业论文，维普正品，支持官网验证真伪",
+            "tips":"这不是查重，不是AIGC检测，这是智评",
+            "config":{}
+        },{
+            "id":"cqvipzpyjs",
+            "name":"维普智评-研究生版",
+            "price":0,
+            "unit":0,
+            "img":"/images/cqvip.png",
+            "description":"适用于硕士、博士 毕业论文，维普正品，支持官网验证真伪",
+            "tips":"这不是查重，不是AIGC检测，这是智评",
+            "config":{}
+        },{
+            "id":"cqvipzpqk",
+            "name":"维普智评-期刊版",
+            "price":0,
+            "unit":0,
+            "img":"/images/cqvip.png",
+            "description":"适用于职称评审论文、已发表论文，维普正品，支持官网验证真伪",
+            "tips":"这不是查重，不是AIGC检测，这是智评",
+            "config":{}
+        }
+    ]
+}
