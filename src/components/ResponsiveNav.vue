@@ -4,6 +4,9 @@ import { useRouter } from 'vue-router'
 import { Menu, Close } from '@element-plus/icons-vue'
 import { onMounted } from 'vue'
 import { paxios } from '@/utils/paxios'
+import { storeToRefs } from "pinia"
+import { useWebsitConfigStore } from '@/stores/websitConfig'
+const { joinUrl } = storeToRefs(useWebsitConfigStore());
 
 
 const router = useRouter()
@@ -44,6 +47,12 @@ function showCS() {
   mobileMenuOpen.value = false
   dialogVisible.value = true
 }
+
+function openJoinUrl(){
+  window.open(joinUrl.value,"_blank")
+}
+
+defineExpose({showCS});
 </script>
 
 <template>
@@ -69,6 +78,9 @@ function showCS() {
       <el-button key="cs" text @click="showCS">
         联系客服
       </el-button>
+      <el-button v-if="joinUrl" key="join" text @click="openJoinUrl">
+        加盟代理
+      </el-button>
     </div>
 
     <!-- 移动端菜单按钮 -->
@@ -86,6 +98,9 @@ function showCS() {
           {{ item.label }}
         </div>
         <div key="cs" class="mobile-menu-item" text @click="showCS">
+          联系客服
+        </div>
+        <div key="join" class="mobile-menu-item" text @click="openJoinUrl">
           联系客服
         </div>
       </div>

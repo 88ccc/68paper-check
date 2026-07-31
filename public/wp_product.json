@@ -1,75 +1,98 @@
 {
-    "end_time_id":[
+    "web": {
+        "title": "维普论文查重检测系统入口-24小时自助检测",
+        "favicon": "/wp_favicon.ico",
+        "logo": "/images/weipulogo.png",
+        "miniLogo": "/images/weipu_small.png",
+        "themeColor":"roseRed",
+        "homeTitle": "维普论文检测系统",
+        "homeDesc": "专业、安全、快速的论文查重与AIGC检测服务<br/>帮助您轻松通过论文检测，学术之路更顺畅<br/>报告支持验证真伪，确保报告正版"
+    },
+    "end_time_id": [
         {
-            "id":"wanfangzc"
-        },{
-            "id":"cqvipzc"
+            "id": "wanfangzc"
+        },
+        {
+            "id": "cqvipzc"
         }
     ],
-    "weipu":[
+    "products": [
         {
-            "id":"cqvip",
-            "name":"维普查重-大学生版",
-            "price":0,
-            "unit":0,
-            "img":"/images/cqvip.png",
-            "description":"适用于本科、专科 毕业论文，维普正品，支持官网验证真伪",
-            "tips":"",
-            "config":{}
-        },{
-            "id":"cqvipmd",
-            "name":"维普查重-研究生版",
-            "price":0,
-            "unit":0,
-            "img":"/images/cqvip.png",
-            "description":"适用于硕士、博士 毕业论文，维普正品，支持官网验证真伪",
-            "tips":"",
-            "config":{}
-        },{
-            "id":"cqvipzc",
-            "name":"维普查重-职称版",
-            "price":0,
-            "unit":0,
-            "img":"/images/cqvip.png",
-            "description":"适用于职称评审论文、已发表论文，维普正品，支持官网验证真伪",
-            "tips":"",
-            "config":{}
-        },{
-            "id":"cqvipbj",
-            "name":"维普查重-编辑部版",
-            "price":0,
-            "unit":0,
-            "img":"/images/cqvip.png",
-            "description":"适用于准备发表投稿的论文，维普正品，支持官网验证真伪",
-            "tips":"",
-            "config":{}
-        },{
-            "id":"cqvipky",
-            "name":"维普查重-科研版",
-            "price":0,
-            "unit":0,
-            "img":"/images/cqvip.png",
-            "description":"适用于科研文章，维普正品，支持官网验证真伪",
-            "tips":"",
-            "config":{}
-        },{
-            "id":"cqvipzy",
-            "name":"维普查重-作业版",
-            "price":0,
-            "unit":0,
-            "img":"/images/cqvip.png",
-            "description":"适用于课程作业，维普正品，支持官网验证真伪",
-            "tips":"",
-            "config":{}
-        },{
-            "id":"cqvipai",
-            "name":"维普-AIGC检测",
-            "price":0,
-            "unit":0,
-            "img":"/images/cqvip.png",
-            "description":"检测文章是否由AI生成，仅支持中文，维普正品，支持官网验证真伪",
-            "tips":"",
-            "config":{}
+            "id": "cqvip",
+            "name": "维普查重-大学生版",
+            "price": 0,
+            "unit": 0,
+            "img": "/images/cqvip.png",
+            "c_img": "/images/weipu_c.png",
+            "description": "适用于本科、专科 毕业论文，维普正品，支持官网验证真伪",
+            "tips": "",
+            "config": {}
+        },
+        {
+            "id": "cqvipmd",
+            "name": "维普查重-研究生版",
+            "price": 0,
+            "unit": 0,
+            "img": "/images/cqvip.png",
+            "c_img": "/images/weipu_c.png",
+            "description": "适用于硕士、博士 毕业论文，维普正品，支持官网验证真伪",
+            "tips": "",
+            "config": {}
+        },
+        {
+            "id": "cqvipzc",
+            "name": "维普查重-职称版",
+            "price": 0,
+            "unit": 0,
+            "img": "/images/cqvip.png",
+            "c_img": "/images/weipu_c.png",
+            "description": "适用于职称评审论文、已发表论文，维普正品，支持官网验证真伪",
+            "tips": "",
+            "config": {}
+        },
+        {
+            "id": "cqvipbj",
+            "name": "维普查重-编辑部版",
+            "price": 0,
+            "unit": 0,
+            "img": "/images/cqvip.png",
+            "c_img": "/images/weipu_c.png",
+            "description": "适用于准备发表投稿的论文，维普正品，支持官网验证真伪",
+            "tips": "",
+            "config": {}
+        },
+        {
+            "id": "cqvipky",
+            "name": "维普查重-科研版",
+            "price": 0,
+            "unit": 0,
+            "img": "/images/cqvip.png",
+            "c_img": "/images/weipu_c.png",
+            "description": "适用于科研文章，维普正品，支持官网验证真伪",
+            "tips": "",
+            "config": {}
+        },
+        {
+            "id": "cqvipzy",
+            "name": "维普查重-作业版",
+            "price": 0,
+            "unit": 0,
+            "img": "/images/cqvip.png",
+            "c_img": "/images/weipu_c.png",
+            "description": "适用于课程作业，维普正品，支持官网验证真伪",
+            "tips": "",
+            "config": {}
+        },
+        {
+            "id": "cqvipai",
+            "name": "维普-AIGC检测",
+            "price": 0,
+            "unit": 0,
+            "img": "/images/cqvip.png",
+            "c_img": "/images/weipu_c.png",
+            "description": "检测文章是否由AI生成，仅支持中文，维普正品，支持官网验证真伪",
+            "tips": "",
+            "config": {}
         }
     ]
 }

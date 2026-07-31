@@ -3,18 +3,16 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useProductConfigStore } from '@/stores/productConfig'
 import { storeToRefs } from "pinia"
+import { useWebsitConfigStore } from '@/stores/websitConfig'
+import { paxios } from '@/utils/paxios'
+const { webSet } = storeToRefs(useWebsitConfigStore());
 
-const { wanfang, weipu, zhiwang, brand } = storeToRefs(useProductConfigStore());
+const { productList } = storeToRefs(useProductConfigStore());
 
 const router = useRouter()
-const showWanfang = ref(false)
-const showWeipu = ref(false)
-const showZhiwang = ref(false)
-const wanfangdes = ref("万方文献相似性查重检测服务采用科学先进的检测技术，实现海量学术文献数据全文比对，秉持客观、公正、精准、全面的服务原则，为用户提供精准详实多维度的查重检测报告。提供包括万方通用版、硕博论文版、大学生论文版、职称论文版等，查重检测结果客观、准确、详实！")
-const weipudes = ref("维普论文检测系统入口提供24小时在线论文查重，可以快速准确地检测出毕业论文，博士硕士论文，期刊论文等论文中过度和不当的引用及抄袭伪造篡改等学术不端行为。 检测报告支持官网验证真伪。 维普论文查重有多个版本，维普大学生版，维普研究生版，维普职称版。满足各类人群的需要。")
-const zhiwangdes = ref("")
-const pinpdes = ref('');
-const systemtitle = ref('论文查重检测系统');
+
+const prodectUserNotice = ref("");
+
 // 跳转到检测页面
 const goToCheck = (type: string) => {
   if (type.length < 2) {
@@ -54,40 +52,13 @@ function convertNumberToUnit(num: number) {
   return String(number) + '字符';
 }
 
-onMounted(() => {
-  if(brand.value == 'wanfang'){
-    systemtitle.value = '万方论文检测系统'
-  }else if(brand.value == 'weipu'){
-    systemtitle.value = '维普论文检测系统'
-  }else if(brand.value == 'zhiwang'){
-    systemtitle.value = '知网论文检测系统'
-  }
-  if (Array.isArray(wanfang.value) && wanfang.value.length) {
-    showWanfang.value = true;
-    if (pinpdes.value.length > 1) {
-      pinpdes.value = pinpdes.value + "、"
+onMounted(async () => {
+  let notice = await paxios.get("/check/get_product_notice?productid=home");
+  if (notice.data.code == 0) {
+
+    if (notice.data.data.notice) {
+      prodectUserNotice.value = notice.data.data.notice.conent;
     }
-    pinpdes.value = pinpdes.value + "万方"
-  } else {
-    showWanfang.value = false;
-  }
-  if (Array.isArray(weipu.value) && weipu.value.length) {
-    showWeipu.value = true;
-    if (pinpdes.value.length > 1) {
-      pinpdes.value = pinpdes.value + "、"
-    }
-    pinpdes.value = pinpdes.value + "维普"
-  } else {
-    showWeipu.value = false;
-  }
-  if (Array.isArray(zhiwang.value) && zhiwang.value.length) {
-    showZhiwang.value = true;
-    if (pinpdes.value.length > 1) {
-      pinpdes.value = pinpdes.value + "、"
-    }
-    pinpdes.value = pinpdes.value + "知网"
-  } else {
-    showZhiwang.value = false;
   }
 
 })
@@ -103,19 +74,11 @@ onMounted(() => {
         <div class="hero-text">
           <h1 class="hero-title">
 
-            <span class="gradient-text">{{ systemtitle }}</span>
+            <span class="gradient-text">{{ webSet.homeTitle }}</span>
           </h1>
-          <p class="hero-desc">
-            专业、安全、快速的论文查重与AIGC检测服务
-            <br>
-            帮助您轻松通过论文检测，学术之路更顺畅
-          </p>
-          <p v-if="brand == 'mix'" class="pinp-desc">
-            我们提供多个权威品牌<span class="pinp-list">{{ pinpdes }}</span>
-          </p>
-          <p class="baoz-desc">
-            报告支持验证真伪
-          </p>
+
+          <div class="hero-desc" v-html="webSet.homeDesc"></div>
+
 
           <div class="trust-tags">
             <el-tag type="success">正版报告</el-tag>
@@ -154,6 +117,12 @@ onMounted(() => {
       </div>
     </div>
 
+    <div style="margin-bottom: 10px;margin-top: 10px;" v-show="prodectUserNotice != ''">
+      <el-alert :title="prodectUserNotice" type="primary" :closable="false">
+      </el-alert>
+
+    </div>
+
     <!-- 产品介绍 -->
     <div id="myproduct" class="products-section">
       <div class="section-title">
@@ -161,10 +130,9 @@ onMounted(() => {
         <p>满足不同学术场景的检测需求</p>
       </div>
       <!--产品列表-->
-      <div v-if="showWanfang">
-        <el-alert v-if="brand == 'mix'" :title="wanfangdes" type="info" effect="dark" :closable="false"></el-alert>
+      <div>
         <el-row>
-          <el-col v-for="item in wanfang" :key="item.id" :xs="24" :sm="12" :md="12" :lg="6" :xl="6">
+          <el-col v-for="item in productList" :key="item.id" :xs="24" :sm="12" :md="12" :lg="6" :xl="6">
 
             <div class="checkitem">
               <div style="text-align: center;margin-top: 10px">
@@ -183,51 +151,6 @@ onMounted(() => {
           </el-col>
         </el-row>
       </div>
-      <div v-if="showWeipu">
-        <el-row>
-          <el-col v-for="item in weipu" :key="item.id" :xs="24" :sm="12" :md="12" :lg="6" :xl="6">
-
-           <div class="checkitem">
-              <div style="text-align: center;margin-top: 10px">
-                <img :src="item.img">
-              </div>
-              <hr />
-              <h4>{{ item.name }}</h4>
-              <div style="padding: 5px 15px; min-height: 80px;">
-                <p>{{ item.description }}</p>
-              </div>
-              <h5>{{ (item.price / 100).toFixed(2) }}元/{{ convertNumberToUnit(item.unit) }}</h5>
-              <div style="text-align: center">
-                <el-button type="primary" @click="goToCheck(item.id)">去检测</el-button>
-              </div>
-            </div>
-          </el-col>
-        </el-row>
-      </div>
-      <div v-if="showZhiwang">
-        <el-alert :title="zhiwangdes" type="info" effect="dark" :closable="false"></el-alert>
-        <el-row>
-          <el-col v-for="item in zhiwang" :key="item.id" :xs="24" :sm="12" :md="12" :lg="6" :xl="6">
-
-            <div class="checkitem">
-              <div style="text-align: center;margin-top: 10px">
-                <img :src="item.img">
-              </div>
-              <hr />
-              <h4>{{ item.name }}</h4>
-              <div style="padding: 5px 15px; min-height: 80px;">
-                <p>{{ item.description }}</p>
-              </div>
-              <h5>{{ (item.price / 100).toFixed(2) }}元/{{ convertNumberToUnit(item.unit) }}</h5>
-              <div style="text-align: center">
-                <el-button type="primary" @click="goToCheck(item.id)">去检测</el-button>
-              </div>
-            </div>
-          </el-col>
-        </el-row>
-      </div>
-
-
     </div>
 
 
@@ -235,12 +158,13 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.home-page{
+.home-page {
   min-height: calc(100vh - 188px);
 }
+
 /* Hero区域 */
 .hero-section {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--el-color-primary) 0%, var(--el-color-primary-dark-2) 100%);
   padding: 80px 20px;
 }
 
@@ -611,7 +535,7 @@ onMounted(() => {
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(90deg, var(--el-color-primary) 0%, var(--el-color-primary-dark-2) 100%);
   opacity: 0;
   transition: opacity 0.3s ease;
 }
@@ -619,8 +543,8 @@ onMounted(() => {
 .checkitem:hover {
   transform: translateY(-8px);
   box-shadow: 0 12px 35px rgba(102, 126, 234, 0.18);
-  border-color: #667eea;
-  background: #abf7be;
+  border-color: var(--el-color-primary);
+  background: var(--el-color-success-light-7)
 }
 
 .checkitem:hover::before {
@@ -678,14 +602,14 @@ onMounted(() => {
   font-size: 15px;
   font-weight: 500;
   border-radius: 25px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--el-color-primary) 0%, var(--el-color-primary-dark-2) 100%);
   border: none;
   transition: all 0.3s ease;
   box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
 }
 
 .checkitem :deep(.el-button:hover) {
-  background: linear-gradient(135deg, #5a6fd6 0%, #6a4190 100%);
+  background: linear-gradient(135deg, var(--el-color-primary-dark-2) 0%, var(--el-color-primary) 100%);
   box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
   transform: scale(1.02);
 }

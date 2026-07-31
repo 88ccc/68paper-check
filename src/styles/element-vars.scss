@@ -1,0 +1,7 @@
+// 先覆盖element基础变量
+@forward "element-plus/theme-chalk/src/common/var.scss" with (
+  $colors: $custom-theme
+);
+
+// 引入完整样式
+@use "element-plus/theme-chalk/src/index.scss" as *;

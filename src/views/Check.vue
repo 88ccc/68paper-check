@@ -3,10 +3,11 @@ import { ref, reactive, onMounted, computed, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
   Warning,
-  Delete
+  Delete,
+  CreditCard,
+  UploadFilled
 } from '@element-plus/icons-vue'
 import type { Ref } from 'vue';
-import ResponsiveNav from '@/components/ResponsiveNav.vue'
 import { paxios } from '@/utils/paxios'
 import { storeToRefs } from "pinia"
 import QRCode from 'qrcode';
@@ -15,10 +16,9 @@ import type { UploadFile, UploadFiles, UploadInstance } from 'element-plus'
 import { useProductConfigStore } from '@/stores/productConfig'
 import { useWxOpenidStore } from '@/stores/wxopenid'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
-import { get } from 'http';
 
-const cardFormRef: Ref<HTMLDivElement | null> = ref(null);
-const { wanfang, weipu, zhiwang, endtimeId, brand } = storeToRefs(useProductConfigStore());
+const cardLoading = ref(false)
+const { productList, endtimeId } = storeToRefs(useProductConfigStore());
 const { openid } = storeToRefs(useWxOpenidStore());
 const payFormRef: Ref<HTMLDivElement | null> = ref(null);
 const product = ref(<any>{});
@@ -31,15 +31,22 @@ const currHasSchool = ref(false);
 const currHasSchool_x = ref(false);
 const currHasClassCode = ref(false);
 const currHasClassType = ref(false);
+const showCardDialog = ref(false);
+const pricetips = ref("");
+const dialogWidth = ref('600px')
 let orderid = '';
 let find = false;
-const productico = ref('📄');
 //浏览器类型
 const browserType = ref('');
 const qrcodeUrl = ref('')
 const showPayQRCode = ref(false)
 const payQRCodeTitle = ref('')
 const payId = ref('')
+let userPaytype = "";
+const productTipsLevel = ref(0);
+const productTips = ref('');
+const prodectUserNotice = ref('');
+const payTypeOptions = ref(<string[]>[]);
 
 const aliQRre = ref({
   id: "",
@@ -58,8 +65,8 @@ let timerPay: any = null;
 const qrLoading = ref(false)
 
 const payWaring = ref('')
-const isSupportWechat = ref(false)
-const isSupportAlipay = ref(false)
+let isSupportWechat = false
+let isSupportAlipay = false
 const paymentMethod = ref('')
 let wechatSet: any = null;
 let AliapySet: any = null;
@@ -153,24 +160,32 @@ const parsePaymentMethod = function (payset: any) {
       }
       if (isMatch) {
         if ((payset[i].type == 'wxpay') && (payset[i].status == 1)) {
-          isSupportWechat.value = true;
+          isSupportWechat = true;
           wechatSet = payset[i];
-          if (wechatSet.prefer == 1) {
-            paymentMethod.value = 'wechat';
-          }
+
         } else if ((payset[i].type == 'alipay') && (payset[i].status == 1)) {
-          isSupportAlipay.value = true;
+          isSupportAlipay = true;
           AliapySet = payset[i];
-          if (AliapySet.prefer == 1) {
-            paymentMethod.value = 'alipay';
-          }
         }
       }
     }
   } else {
     console.log("payset不是数组");
-    ElMessage.error("获取支付方式错误");
   }
+  const myPayArray = userPaytype.split(",");
+  for (let i = 0; i < myPayArray.length; i++) {
+    if ((myPayArray[i] == "wechat") && isSupportWechat) {
+      payTypeOptions.value.push("wechat");
+    }
+    if ((myPayArray[i] == "alipay") && isSupportAlipay) {
+      payTypeOptions.value.push("alipay");
+    }
+    if (myPayArray[i] == "card") {
+      payTypeOptions.value.push("card");
+    }
+  }
+
+
 };
 
 const cardRules = reactive({
@@ -208,8 +223,10 @@ const uploadRef = ref<UploadInstance>()
 const handleResize = () => {
   if (window.innerWidth < 768) {
     smallp.value = true;
+    dialogWidth.value = "92%";
   } else {
     smallp.value = false;
+    dialogWidth.value = "600px";
 
   }
 };
@@ -221,32 +238,15 @@ onMounted(async () => {
   const productid = route.query.type as string
 
   if (find == false) {
-    for (let i = 0; i < wanfang.value.length; i++) {
-      if (wanfang.value[i].id == productid) {
-        product.value = wanfang.value[i];
+    for (let i = 0; i < productList.value.length; i++) {
+      if (productList.value[i].id == productid) {
+        product.value = productList.value[i];
         find = true;
         break;
       }
     }
   }
-  if (find == false) {
-    for (let i = 0; i < weipu.value.length; i++) {
-      if (weipu.value[i].id == productid) {
-        product.value = weipu.value[i];
-        find = true;
-        break;
-      }
-    }
-  }
-  if (find == false) {
-    for (let i = 0; i < zhiwang.value.length; i++) {
-      if (zhiwang.value[i].id == productid) {
-        product.value = zhiwang.value[i];
-        find = true;
-        break;
-      }
-    }
-  }
+
   if (find == false) {
     ElMessage.error("没有找到该检测系统");
     return;
@@ -265,14 +265,36 @@ onMounted(async () => {
   } else {
     txtupload.value = false;
   }
+  if (product.value.unit == 0) {
+    pricetips.value = "" + (product.value.price / 100) + "元/篇"
+  } else {
+    pricetips.value = "" + (product.value.price / 100) + "元/" + convertNumberToUnit(product.value.unit) + ",不足" + convertNumberToUnit(product.value.unit) + "按" + convertNumberToUnit(product.value.unit) + "计算";
+  }
+
 
   try {
     loading.value = true;
+    let payres = await paxios.post("/check/get_pay_type");
+    if (payres.data.code == 0) {
+      userPaytype = payres.data.data;
+    }
+
     let res = await paxios.get("/index/getPaySet");
     if (res.data.code == 0) {
       parsePaymentMethod(res.data.data);
     } else {
       ElMessage.error(res.data.msg);
+    }
+
+    let notice = await paxios.get("/check/get_product_notice?productid=" + productid);
+    if (notice.data.code == 0) {
+      if (notice.data.data.tips) {
+        productTipsLevel.value = notice.data.data.tips.level;
+        productTips.value = notice.data.data.tips.content;
+      }
+      if (notice.data.data.notice) {
+        prodectUserNotice.value = notice.data.data.notice.conent;
+      }
     }
 
   } catch (err) {
@@ -284,10 +306,10 @@ onMounted(async () => {
   //获取参数
   let res1j = await fetch('/wpzp_param.json');
   let res1 = await res1j.json();
-  if (res1.data.code === 0) {
-    wpzpSchoolId.value = res1.data.school;
-    wpzpClassCode.value = res1.data.classcode;
-    wpzpClassType.value = res1.data.classtype;
+  if (res1.code === 0) {
+    wpzpSchoolId.value = res1.school;
+    wpzpClassCode.value = res1.classcode;
+    wpzpClassType.value = res1.classtype;
   }
 
   if (productid == "cqvipzpdxs") {
@@ -641,6 +663,43 @@ const resetUpload = () => {
   router.push("/#myproduct")
 }
 
+async function submitCard() {
+  cardLoading.value = false;
+  let tmpcard1 = cardForm.cardid1.trim();
+  let tmpcard2 = cardForm.cardid2.trim();
+  if (orderid.length < 3) {
+    ElMessage.error("请先上传文件")
+    return;
+  }
+  if (tmpcard1.length < 3) {
+    ElMessage.error("请输入卡号")
+    return;
+  }
+  let cards = tmpcard1;
+  if (tmpcard2.length > 3) {
+    cards = tmpcard1 + "," + tmpcard2;
+  }
+  try {
+    cardLoading.value = true;
+    let res = await paxios.post("/check/pay_by_card", { cards: cards, orderid: orderid });
+    if (res.data.code == 0) {
+      payId.value = tmpcard1;
+      submitOrder();
+    } else {
+      ElMessageBox.alert(res.data.msg, '错误', {
+        confirmButtonText: '确定'
+      });
+    }
+  } catch (err) {
+    console.error(err);
+    ElMessage.error("发生异常，请稍后重试，或者联系客服");
+  } finally {
+    cardLoading.value = false;
+  }
+
+
+}
+
 const submitOrder = () => {
   // 跳转到报告下载页面
   setTimeout(() => {
@@ -662,6 +721,10 @@ function handleAlipayPay() {
   payQRCodeTitle.value = '支付宝扫码支付'
   confirmPayment();
 }
+function handleCardPay() {
+  paymentMethod.value = "card";
+  confirmCardPay();
+}
 
 function closeQRCodeDialog() {
   if (timer) {
@@ -670,9 +733,26 @@ function closeQRCodeDialog() {
   }
 }
 
+function closeCardDialog() {
+
+}
+
+const confirmCardPay = () => {
+  if (paymentMethod.value != "card") {
+    return;
+  }
+  closeQRCodeDialog();
+  showCardDialog.value = true;
+
+}
+
+
 const confirmPayment = () => {
 
   qrcodeUrl.value = "";
+  if (paymentMethod.value == "card") {
+    return;
+  }
 
   // 根据浏览器类型决定支付方式
   if (browserType.value === 'pc') {
@@ -716,7 +796,7 @@ async function showPayQRcode() {
   }
   if (qrcode.length < 3) {
     try {
-      let res = await paxios.post("/index/getPayQRcode", { type: paymentMethod.value, amount: formData.total_price/100, modeid: modeid, orderid: orderid });
+      let res = await paxios.post("/index/getPayQRcode", { type: paymentMethod.value, amount: formData.total_price / 100, modeid: modeid, orderid: orderid });
       if (res.data.code == 0) {
         if (paymentMethod.value == 'alipay') {
           aliQRre.value.qr = res.data.data.qr;
@@ -782,7 +862,7 @@ async function processH5Payment() {
   // 拼接 /report 路径
   const reportUrl = currentDomain + "/report?orderNo=";
   try {
-    let res = await paxios.post("/index/getH5Pay", { type: paymentMethod.value, orderid: orderid, amount: formData.total_price/100, modeid: modeid, returnUrl: reportUrl });
+    let res = await paxios.post("/index/getH5Pay", { type: paymentMethod.value, orderid: orderid, amount: formData.total_price / 100, modeid: modeid, returnUrl: reportUrl });
     if (res.data.code == 0) {
       payId.value = res.data.data.payid;
       if (paymentMethod.value == 'alipay') {
@@ -840,7 +920,7 @@ async function processWechatPayment() {
     ElMessage.error('支付方式未配置');
     return;
   }
-  let res = await paxios.post("/index/getMPpay", { type: paymentMethod.value, orderid: orderid, amount: formData.total_price/100, modeid: modeid, openid: openid.value })
+  let res = await paxios.post("/index/getMPpay", { type: paymentMethod.value, orderid: orderid, amount: formData.total_price / 100, modeid: modeid, openid: openid.value })
   if (res.data.code == 0) {
     payId.value = res.data.data.payid;
     let param = {
@@ -930,22 +1010,18 @@ function onBridgeReady(data: any) {
             <div class="selected-product-bar">
               <div class="product-info">
                 <div v-if="!smallp">
-                  <span v-if="brand == 'mix'" class="product-icon-mini">
-                    {{ productico }}
+
+                  <span class="wanfang-logo">
+                    <img style="width: 100%;" :src="product.c_img">
                   </span>
-                  <span v-if="brand == 'wanfang'" class="wanfang-logo">
-                    <img style="width: 100%;" src="/images/wanfang_c.png">
-                  </span>
-                  <span v-if="brand == 'weipu'" class="wanfang-logo">
-                    <img style="width: 100%;" src="/images/weipu_c.png">
-                  </span>
+
                 </div>
 
                 <div class="product-details">
                   <div class="product-name-mini">
                     <span class="version-badge">{{ product.name }}</span>
                     <span class="version-badge">{{ (product.price / 100) }}元/{{ convertNumberToUnit(product.unit)
-                    }}</span>
+                      }}</span>
                   </div>
                   <div class="product-description">
                     {{ product.description }}
@@ -955,6 +1031,11 @@ function onBridgeReady(data: any) {
               <el-button link type="primary" @click="resetUpload">
                 重新选择
               </el-button>
+            </div>
+            <div style="margin-bottom: 15px;" v-show="prodectUserNotice != ''">
+              <el-alert :title="prodectUserNotice" type="primary" :closable="false">
+              </el-alert>
+
             </div>
 
             <div class="form-container">
@@ -999,7 +1080,7 @@ function onBridgeReady(data: any) {
                   </el-radio-group>
                 </el-form-item>
 
-                <el-form-item v-if="formData.uploadType === 'file'" label="上传文件">
+                <el-form-item style="margin-bottom: 0px;" v-if="formData.uploadType === 'file'" label="上传文件">
                   <el-upload :multiple="false" style="width: 100%;" ref="uploadRef" :show-file-list="false" :limit="1"
                     drag action="#" :auto-upload="false" :on-exceed="handleExceed" :on-change="fileChange">
                     <el-row style="height: 100%;">
@@ -1031,13 +1112,24 @@ function onBridgeReady(data: any) {
                   </el-upload>
                 </el-form-item>
 
-                <el-form-item v-if="formData.uploadType === 'text'" label="文本内容">
+                <el-form-item style="margin-bottom: 0px;" v-if="formData.uploadType === 'text'" label="文本内容">
                   <el-input v-model="formData.text" type="textarea" :rows="15" placeholder="请粘贴您的论文内容..."
                     :minlength="product.config?.min_words" :maxlength="product.config?.max_words" show-word-limit />
                 </el-form-item>
+                <div class="price_tips_dev">
+                  <p class="price_tips">{{ pricetips }}</p>
+                </div>
                 <div v-show="product.tips != ''">
                   <el-alert title="注意事项" type="warning" :closable="false">
                     <span v-html="product.tips"></span>
+                  </el-alert>
+                </div>
+                <div v-show="productTips != ''">
+                  <el-alert v-if="productTipsLevel == 1" :title="productTips" type="info" :closable="false">
+                  </el-alert>
+                  <el-alert v-if="productTipsLevel == 2" :title="productTips" type="warning" :closable="false">
+                  </el-alert>
+                  <el-alert v-if="productTipsLevel == 3" :title="productTips" type="error" :closable="false">
                   </el-alert>
                 </div>
               </el-form>
@@ -1055,20 +1147,21 @@ function onBridgeReady(data: any) {
                 </template>
               </el-alert>
               <el-descriptions :column="2" border class="info-descriptions">
-                <el-descriptions-item :span="2" label="检测系统"><span style="color: blue;">{{ product.name
-                }}</span></el-descriptions-item>
+                <el-descriptions-item :span="2" label="检测系统"><span style="color: var(--el-color-primary);">{{
+                  product.name
+                    }}</span></el-descriptions-item>
                 <el-descriptions-item label="论文标题">{{ formData.title }}</el-descriptions-item>
                 <el-descriptions-item label="作者">{{ formData.author }}</el-descriptions-item>
                 <el-descriptions-item v-if="formData.endTime != ''" label="发表日期">{{ formData.endTime
-                }}</el-descriptions-item>
+                  }}</el-descriptions-item>
                 <el-descriptions-item v-if="formData.fileName" label="文件名">{{ formData.fileName
-                }}</el-descriptions-item>
+                  }}</el-descriptions-item>
                 <el-descriptions-item v-if="formData.school_id" label="学校">{{ getschoolbyid(formData.school_id)
-                }}</el-descriptions-item>
+                  }}</el-descriptions-item>
                 <el-descriptions-item v-if="formData.class_code" label="学科">{{ getClassCodebyid(formData.class_code)
-                }}</el-descriptions-item>
+                  }}</el-descriptions-item>
                 <el-descriptions-item v-if="formData.class_type" label="类型">{{ getClassTypebyid(formData.class_type)
-                }}</el-descriptions-item>
+                  }}</el-descriptions-item>
                 <el-descriptions-item v-if="formData.wordCount" label="字数">{{ formData.wordCount.toLocaleString() }}
                   字</el-descriptions-item>
                 <el-descriptions-item label="件数">
@@ -1088,10 +1181,13 @@ function onBridgeReady(data: any) {
                 </template>
               </el-alert>
               <div>
-                <el-button v-show="isSupportWechat" @click="handleWeChatPay" type="success">微信支付</el-button><span
-                  v-show="isSupportWechat">&nbsp;&nbsp;&nbsp;&nbsp;</span>
-                <el-button v-show="isSupportAlipay" @click="handleAlipayPay" type="primary">支付宝支付</el-button>
+                <template v-for="item in payTypeOptions" :key="item">
+                  <el-button v-if="item === 'wechat'" color="#07C160" @click="handleWeChatPay">微信支付</el-button>
+                  <el-button v-if="item === 'alipay'" color="#1890FF" @click="handleAlipayPay">支付宝支付</el-button>
+                  <el-button v-if="item === 'card'" color="#626aef" @click="handleCardPay">检测卡</el-button>
+                </template>
               </div>
+
               <div ref="payFormRef" class="pay-form-container" style="display: none;"></div>
               <div v-if="(!isSupportAlipay) && (!isSupportWechat)">
                 <el-alert :title="payWaring" type="warning" />
@@ -1113,6 +1209,7 @@ function onBridgeReady(data: any) {
             重新上传
           </el-button>
         </div>
+
       </div>
 
     </div>
@@ -1122,7 +1219,7 @@ function onBridgeReady(data: any) {
           <img :src="qrcodeUrl" alt="支付二维码" class="qr-code-image" />
         </div>
         <div>订单号：{{ payId }}</div>
-        <div class="qrcode-amount">支付金额: ¥{{ (formData.total_price/100).toFixed(2) }}元</div>
+        <div class="qrcode-amount">支付金额: ¥{{ (formData.total_price / 100).toFixed(2) }}元</div>
         <div><el-button @click="submitOrder" type="success">已经完成支付</el-button></div>
       </div>
       <template #footer>
@@ -1131,14 +1228,59 @@ function onBridgeReady(data: any) {
         </span>
       </template>
     </el-dialog>
+    <el-dialog @close="closeCardDialog" v-model="showCardDialog" title="检测卡支付" :width="dialogWidth" center>
+      <div v-loading="cardLoading">
+        <div>
+          <el-form label-width="auto" :model="cardForm" :rules="cardRules">
+            <el-form-item>
+              <p style="font-size:12px;color:green;margin-top: 0px;margin-bottom: 0px;">
+                温馨提醒：你需要购买 <span style="font-size: 18px;color:red">{{ formData.piece }}</span> 件 <span
+                  style="color: var(--el-color-primary);">{{
+                    product.name }}</span>
+              </p>
+            </el-form-item>
+            <el-form-item label="卡号" prop="cardid1">
+              <el-input v-model="cardForm.cardid1" />
+            </el-form-item>
+            <el-form-item label="备用卡号" prop="cardid2">
+              <el-input v-model="cardForm.cardid2" />
+            </el-form-item>
+            <el-form-item>
+              <p style="font-size:12px;color:red;margin-top: 0px;">
+                备用卡号可以不填，如果填写，会将卡号的额度合并使用</p>
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" @click="submitCard">提交</el-button>
+              <el-button @click="showCardDialog = false">取消</el-button>
+            </el-form-item>
+
+          </el-form>
+
+        </div>
+      </div>
+
+    </el-dialog>
+
   </el-config-provider>
 </template>
 
 <style scoped>
+.price_tips_dev {
+  display: none;
+  text-align: end;
+  margin-top: 0px;
+}
+
+.price_tips {
+  font-size: 12px;
+  margin-top: 0px;
+  color: blue;
+}
+
 .price-text {
   font-size: 24px;
   font-weight: 600;
-  color: #f56c6c;
+  color: var(--el-color-danger);
 }
 
 .info-descriptions {
@@ -1198,7 +1340,7 @@ function onBridgeReady(data: any) {
 
 /* 已选产品条 */
 .selected-product-bar {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--el-color-primary) 0%, var(--el-color-primary-dark-2) 100%);
   padding: 20px 30px;
   border-radius: 12px;
   margin-bottom: 30px;
@@ -1252,7 +1394,7 @@ function onBridgeReady(data: any) {
 .version-badge {
   background: rgba(255, 255, 255, 0.959);
   padding: 4px 12px;
-  color: blue;
+  color: var(--el-color-primary);
   border-radius: 12px;
   font-size: 14px;
   font-weight: normal;

@@ -13,7 +13,7 @@ import { storeToRefs } from "pinia"
 import { paxios } from '@/utils/paxios'
 import { useProductConfigStore } from '@/stores/productConfig'
 
-const { wanfang, weipu, zhiwang, endtimeId, brand } = storeToRefs(useProductConfigStore());
+const { productList, endtimeId } = storeToRefs(useProductConfigStore());
 
 // ElMessage已通过unplugin-auto-import自动导入，无需手动导入
 
@@ -47,28 +47,14 @@ interface OrderInfo {
 const orderNo = ref('')
 const orderInfo = ref<OrderInfo | null>(null)
 const loading = ref(false)
-const autoRefreshTimer = ref<number | null>(null)
+const autoRefreshTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 
 
 function getproductName(productid: string) {
 
-  for (let i = 0; i < wanfang.value.length; i++) {
-    if (wanfang.value[i].id == productid) {
-      return wanfang.value[i].name;
-    }
-  }
-
-
-  for (let i = 0; i < weipu.value.length; i++) {
-    if (weipu.value[i].id == productid) {
-      return weipu.value[i].name;
-    }
-  }
-
-
-  for (let i = 0; i < zhiwang.value.length; i++) {
-    if (zhiwang.value[i].id == productid) {
-      return zhiwang.value[i].name;
+  for (let i = 0; i < productList.value.length; i++) {
+    if (productList.value[i].id == productid) {
+      return productList.value[i].name;
     }
   }
 
@@ -171,7 +157,7 @@ const startAutoRefresh = () => {
   stopAutoRefresh()
 
   // 每分钟刷新一次
-  autoRefreshTimer.value = window.setInterval(async () => {
+  autoRefreshTimer.value = setTimeout(async () => {
     console.log('自动刷新订单状态...')
     await queryOrder()
   }, 60000)
@@ -180,7 +166,7 @@ const startAutoRefresh = () => {
 // 停止自动刷新
 const stopAutoRefresh = () => {
   if (autoRefreshTimer.value) {
-    clearInterval(autoRefreshTimer.value)
+    clearTimeout(autoRefreshTimer.value)
     autoRefreshTimer.value = null
   }
 }
@@ -297,7 +283,8 @@ const handleRefund = async () => {
           </el-form>
           <el-alert type="primary" :closable="false">
             <template #default>
-              填写检测时的“卡号”，查询报告。如果一次检测用了多个卡号，任意一个卡号即可查询报告。<span style="color:red">报告仅保留7天，请及时下载报告。</span>
+              填写检测时的"卡号"，查询报告。如果一次检测用了多个卡号，任意一个卡号即可查询报告。<span
+                style="color: var(--el-color-danger);">报告仅保留7天，请及时下载报告。</span>
             </template>
           </el-alert>
         </div>
@@ -319,7 +306,7 @@ const handleRefund = async () => {
           </div>
 
           <div class="tip-box">
-            <el-icon color="#e6a23c" :size="18">
+            <el-icon color="var(--el-color-warning)" :size="18">
               <Warning />
             </el-icon>
             <p>温馨提示：请确认输入订单编号正确或已成功提交检测，如有疑问请联系在线客服。</p>
@@ -342,7 +329,7 @@ const handleRefund = async () => {
           </div>
 
           <div class="tip-box">
-            <el-icon color="#e6a23c" :size="18">
+            <el-icon color="var(--el-color-warning)" :size="18">
               <Warning />
             </el-icon>
             <p>温馨提示：请确认输入订单编号正确或已成功提交检测，如有疑问请联系在线客服。</p>
@@ -376,9 +363,12 @@ const handleRefund = async () => {
               </div>
             </div>
           </div>
+          <div class="tip-box">
+            <el-alert title="预计半小时左右出报告" type="primary" :closable="false" />
+          </div>
 
           <div class="tip-box info">
-            <el-icon color="#409eff" :size="18">
+            <el-icon color="var(--el-color-primary)" :size="18">
               <Refresh />
             </el-icon>
             <p>系统每分钟自动刷新订单状态，请耐心等待检测完成...</p>
@@ -578,7 +568,7 @@ const handleRefund = async () => {
   min-height: calc(100vh - 188px);
   display: flex;
   flex-direction: column;
-  background: #f5f7fa;
+  background: var(--el-color-primary-light-9);
 }
 
 .main-container {
@@ -667,23 +657,23 @@ const handleRefund = async () => {
 }
 
 .status-icon.warning {
-  background: #fef0f0;
-  color: #e6a23c;
+  background: var(--el-color-warning-light-9);
+  color: var(--el-color-warning);
 }
 
 .status-icon.processing {
-  background: #ecf5ff;
-  color: #409eff;
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
 }
 
 .status-icon.success {
-  background: #f0f9ff;
-  color: #67c23a;
+  background: var(--el-color-success-light-9);
+  color: var(--el-color-success);
 }
 
 .status-icon.error {
-  background: #fef0f0;
-  color: #f56c6c;
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
 }
 
 .status-title {
@@ -718,7 +708,7 @@ const handleRefund = async () => {
 .info-product {
   font-size: 14px;
   font-weight: 400;
-  color: blue;
+  color: var(--el-color-primary);
   margin-right: 10px;
 }
 
@@ -757,13 +747,13 @@ const handleRefund = async () => {
 }
 
 .tip-box.info {
-  background: #ecf5ff;
-  border: 1px solid #d9ecff;
+  background: var(--el-color-primary-light-9);
+  border: 1px solid var(--el-color-primary-light-7);
 }
 
 .tip-box.warning {
   background: #fef0f0;
-  border: 2px solid #f56c6c;
+  border: 2px solid var(--el-color-danger);
 }
 
 .tip-box p {
@@ -773,7 +763,7 @@ const handleRefund = async () => {
 }
 
 .tip-box.warning p strong {
-  color: #f56c6c;
+  color: var(--el-color-danger);
 }
 
 /* 操作按钮 */
@@ -793,7 +783,7 @@ const handleRefund = async () => {
 .loading-container {
   text-align: center;
   padding: 80px 20px;
-  color: #667eea;
+  color: var(--el-color-primary);
 }
 
 .loading-container .el-icon {

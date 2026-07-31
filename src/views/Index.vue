@@ -1,22 +1,86 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { RouterView } from 'vue-router'
-import { useProductConfigStore } from '@/stores/productConfig'
 import { storeToRefs } from "pinia"
-import { useRouter } from 'vue-router'
-
-const { brand } = storeToRefs(useProductConfigStore());
+import { useRouter, useRoute } from 'vue-router'
+import { useWebsitConfigStore } from '@/stores/websitConfig'
+import { setTheme } from '@/utils/theme-color'
+import { useWxOpenidStore } from '@/stores/wxopenid'
+import { mySleepMs, getBrowserType } from '@/utils/utils'
+import { paxios } from '@/utils/paxios'
+const { openid } = storeToRefs(useWxOpenidStore());
+const { webSet, joinUrl } = storeToRefs(useWebsitConfigStore());
 const router = useRouter()
+const route = useRoute();
+const navRef = ref();
+
+
+function changeFavicon(src: string) {
+  const existingLink = document.querySelector("link[rel*='icon']") as HTMLLinkElement | null;
+  if (existingLink) {
+    existingLink.href = src;
+    return;
+  }
+  const link = document.createElement('link');
+  link.type = 'image/x-icon';
+  link.rel = 'icon';
+  link.href = src;
+  document.head.appendChild(link);
+}
 
 onMounted(async () => {
-  if (brand.value == "wanfang") {
-    document.title = "万方论文查重检测系统入口-24小时自助检测";
-  } else if (brand.value == "weipu") {
-    document.title = "维普论文查重检测系统入口-24小时自助检测";
-  } else if (brand.value == "zhiwang") {
-    document.title = "知网论文查重检测系统入口-24小时自助检测";
+  setTheme(webSet.value.themeColor);
+  document.title = webSet.value.title;
+  changeFavicon(webSet.value.favicon);
+
+  try {
+
+    const browserType = getBrowserType();
+    console.log("当前浏览器类型:", browserType);
+    if (browserType == 'wechat') {
+      let currentUrl = window.location.href;
+      const code = route.query.code;
+      if (code) {
+        // 微信授权
+        let res = await paxios.post("/index/getWechatAuthUserInfo", { code: code });
+        if (res.data.code == 0) {
+          openid.value = res.data.data.openid;
+          localStorage.setItem('openid', openid.value);
+
+        } else {
+          let localtopenid = localStorage.getItem('openid');
+          if (localtopenid) {
+            openid.value = localtopenid;
+          } else {
+            ElMessage.error(res.data.msg)
+          }
+        }
+      } else {
+        let res = await paxios.post("/index/getWechatAuthUrl", { url: currentUrl });
+        if (res.data.code == 0) {
+          window.location.href = res.data.data.url;
+        } else {
+          let localtopenid = localStorage.getItem('openid');
+          if (localtopenid) {
+            openid.value = localtopenid;
+          } else {
+            //ElMessage.error(res.data.msg)
+          }
+        }
+      }
+
+    }
+  } catch (error) {
+    console.log(error);
   }
+
+
 })
+
+function showCS() {
+  navRef.value.showCS();
+}
+
 </script>
 
 
@@ -25,19 +89,13 @@ onMounted(async () => {
     <!-- 导航栏 -->
     <div class="navbar">
       <div class="nav-content">
-        <div v-if="brand == 'mix'" class="logo">
-          <span class="logo-icon">📚</span>
-          <span class="logo-text">论文查重检测系统</span>
+
+        <div>
+          <img class="logo-big-1" :src="webSet.logo">
+          <img class="logo-small-1" :src="webSet.miniLogo">
         </div>
-        <div v-if="brand == 'wanfang'">
-          <img class="wanfang-logo-big-1" src="/images/wanfanghome.svg">
-          <img class="wanfang-logo-small-1" src="/images/wanfang.png">
-        </div>
-        <div v-if="brand == 'weipu'">
-          <img class="weipu-logo-big-1" src="/images/weipulogo.png"></img>
-          <img class="weipu-logo-small-1" src="/images/weipu_small.png"></img>
-        </div>
-        <ResponsiveNav />
+
+        <ResponsiveNav ref="navRef" />
       </div>
     </div>
 
@@ -51,6 +109,8 @@ onMounted(async () => {
           <el-link @click="router.push('/#myproduct')">论文查重</el-link>
           <el-link @click="router.push('/report')">报告下载</el-link>
           <el-link @click="router.push('/faq')">常见问题</el-link>
+          <el-link @click="showCS()">联系客服</el-link>
+          <el-link v-if="joinUrl" :href="joinUrl" target="_blank">加盟代理</el-link>
         </div>
         <div class="footer-copy">
           <p>© 2026 论文查重检测系统 版权所有</p>
@@ -68,7 +128,7 @@ onMounted(async () => {
 
 /* 导航栏 */
 .navbar {
-  background: #fff;
+  background: var(--el-color-primary-light-8);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
   position: sticky;
   top: 0;
@@ -85,19 +145,11 @@ onMounted(async () => {
   justify-content: space-between;
 }
 
-.wanfang-logo-big-1 {
-  height: 60px;
+.logo-big-1 {
+  height: 55px;
 }
 
-.weipu-logo-big-1 {
-  height: 50px;
-}
-
-.wanfang-logo-small-1 {
-  display: none;
-}
-
-.weipu-logo-small-1 {
+.logo-small-1 {
   display: none;
 }
 
@@ -156,22 +208,15 @@ onMounted(async () => {
 
 
 
-@media (max-width: 920px) {
-  .wanfang-logo-big-1 {
+@media (max-width: 980px) {
+  .logo-big-1 {
     display: none;
   }
 
-  .wanfang-logo-small-1 {
+  .logo-small-1 {
+    max-height: 40px;
     display: block;
   }
 
-  .weipu-logo-big-1 {
-    display: none;
-  }
-
-  .weipu-logo-small-1 {
-    height: 40px;
-    display: block;
-  }
 }
 </style>

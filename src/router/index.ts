@@ -51,26 +51,9 @@ const router = createRouter({
   }
 })
 
-
-const setFavicon = (iconPath: string) => {
-  // 查找现有 favicon 标签
-  let link = document.querySelector<HTMLLinkElement>('link[rel*="icon"]');
-
-  if (link) {
-    // 若存在则直接修改 href
-    link.href = iconPath;
-  } else {
-    // 若不存在则创建新标签
-    link = document.createElement('link');
-    link.rel = 'icon';
-    link.href = iconPath;
-    document.head.appendChild(link);
-  }
-};
-
 router.beforeEach(async (to, from, next) => {
-  const { custom, webIsInit, apiUrl } = storeToRefs(useWebsitConfigStore());
-  const { wanfang, weipu, zhiwang, endtimeId, brand } = storeToRefs(useProductConfigStore());
+  const { webIsInit, apiUrl, webSet, joinUrl } = storeToRefs(useWebsitConfigStore());
+  const { productList, endtimeId } = storeToRefs(useProductConfigStore());
   try {
     if (!webIsInit.value) {
       const res = await fetch('/config.json');
@@ -78,104 +61,55 @@ router.beforeEach(async (to, from, next) => {
       apiUrl.value = config.apiUrl;
       const pres = await fetch('/product.json');
       const product = await pres.json();
+      if (product.web) {
+        webSet.value.title = product.web.title;
+        webSet.value.favicon = product.web.favicon;
+        webSet.value.logo = product.web.logo;
+        webSet.value.miniLogo = product.web.miniLogo;
+        webSet.value.themeColor = product.web.themeColor;
+        webSet.value.homeTitle = product.web.homeTitle;
+        webSet.value.homeDesc = product.web.homeDesc;
+      }
       if (Array.isArray(product.end_time_id) && (product.end_time_id.length > 0)) {
         for (let i = 0; i < product.end_time_id.length; i++) {
           endtimeId.value.push(product.end_time_id[i].id)
         }
       }
-      let hasWanfang = false;
-      let hasWeipu = false;
-      let hasZhiwang = false;
-      if (Array.isArray(product.wanfang) && (product.wanfang.length > 0)) {
-        wanfang.value = product.wanfang
-        hasWanfang = true;
+
+      if (Array.isArray(product.products) && (product.products.length > 0)) {
+        productList.value = product.products
       }
-      if (Array.isArray(product.weipu) && (product.weipu.length > 0)) {
-        weipu.value = product.weipu
-        hasWeipu = true;
-      }
-      if (Array.isArray(product.zhiwang) && (product.zhiwang.length > 0)) {
-        zhiwang.value = product.zhiwang
-        hasZhiwang = true;
-      }
-      if (hasWanfang && (!hasWeipu) && (!hasZhiwang)) {
-        brand.value = 'wanfang'
-      } else if ((!hasWanfang) && (hasWeipu) && (!hasZhiwang)) {
-        brand.value = 'weipu'
-      } else if ((!hasWanfang) && (!hasWeipu) && (hasZhiwang)) {
-        brand.value = 'zhiwang'
-      } else {
-        brand.value = 'mix'
-      }
+
       const cpres = await paxios.get("/check/product_info");
       if (cpres.data.code == 0) {
         let pdata = cpres.data.data;
-        for (let i = 0; i < wanfang.value.length; i++) {
+        for (let i = 0; i < productList.value.length; i++) {
           for (let k = 0; k < pdata.length; k++) {
-            if (wanfang.value[i].id == pdata[k].id) {
+            if (productList.value[i].id == pdata[k].id) {
               if (pdata[k].status != 1) {
-                wanfang.value.splice(i, 1);
+                productList.value.splice(i, 1);
                 i--;
                 break;
               }
-              wanfang.value[i].price = pdata[k].price
-              wanfang.value[i].unit = pdata[k].unit
-              wanfang.value[i].config = pdata[k].config
+              productList.value[i].price = pdata[k].price
+              productList.value[i].unit = pdata[k].unit
+              productList.value[i].config = pdata[k].config
               break;
             }
           }
         }
-        for (let i = 0; i < wanfang.value.length; i++) {
-          if(wanfang.value[i].price == 0){
-            wanfang.value.splice(i, 1);
-            i--;
-          }
-        }
-        for (let i = 0; i < weipu.value.length; i++) {
-          console.log(weipu.value[i].id)
-          for (let k = 0; k < pdata.length; k++) {
-            if (weipu.value[i].id == pdata[k].id) {
-              if (pdata[k].status != 1) {
-                weipu.value.splice(i, 1);
-                i--;
-                break;
-              }
-              weipu.value[i].price = pdata[k].price
-              weipu.value[i].unit = pdata[k].unit
-              weipu.value[i].config = pdata[k].config
-              break;
-            }
-          }
-        }
-        for(let i = 0; i < weipu.value.length; i++) {
-          if(weipu.value[i].price == 0){
-            weipu.value.splice(i, 1);
-            i--;
-          }
-        }
-        for (let i = 0; i < zhiwang.value.length; i++) {
-          for (let k = 0; k < pdata.length; k++) {
-            if (zhiwang.value[i].id == pdata[k].id) {
-              if (pdata[k].status != 1) {
-                zhiwang.value.splice(i, 1);
-                i--;
-                break;
-              }
-              zhiwang.value[i].price = pdata[k].price
-              zhiwang.value[i].unit = pdata[k].unit
-              zhiwang.value[i].config = pdata[k].config
-              break;
-            }
-          }
-        }
-        for(let i = 0; i < zhiwang.value.length; i++) {
-          if(zhiwang.value[i].price == 0){
-            zhiwang.value.splice(i, 1);
+        for (let i = 0; i < productList.value.length; i++) {
+          if (productList.value[i].price == 0) {
+            productList.value.splice(i, 1);
             i--;
           }
         }
       } else {
         ElMessage.error("获取产品信息失败")
+      }
+      const jres = await paxios.get("/check/get_join_url");
+      if (jres.data.code == 0) {
+        joinUrl.value = jres.data.data.join_url;
       }
       webIsInit.value = true;
     }

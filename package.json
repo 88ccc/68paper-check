@@ -15,6 +15,7 @@
     "element-plus": "^2.13.2",
     "pinia": "^3.0.4",
     "qrcode": "^1.5.4",
+    "tinycolor2": "^1.6.0",
     "vue": "^3.5.27",
     "vue-router": "^4.6.4"
   },
@@ -25,6 +26,7 @@
     "@vitejs/plugin-vue": "^6.0.3",
     "@vue/tsconfig": "^0.8.1",
     "npm-run-all2": "^8.0.4",
+    "sass": "^1.101.0",
     "typescript": "~5.9.3",
     "unplugin-auto-import": "^21.0.0",
     "unplugin-vue-components": "^31.0.0",
