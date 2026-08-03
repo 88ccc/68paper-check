@@ -260,7 +260,7 @@ onMounted(async () => {
   }
   browserType.value = getBrowserType();
 
-  if (isFileFormatSupported(product.value.config.file_types, "txt")) {
+  if (isFileFormatSupported(product.value.config.file_types, "xxx.txt")) {
     txtupload.value = true;
   } else {
     txtupload.value = false;
@@ -1021,7 +1021,7 @@ function onBridgeReady(data: any) {
                   <div class="product-name-mini">
                     <span class="version-badge">{{ product.name }}</span>
                     <span class="version-badge">{{ (product.price / 100) }}元/{{ convertNumberToUnit(product.unit)
-                      }}</span>
+                    }}</span>
                   </div>
                   <div class="product-description">
                     {{ product.description }}
@@ -1153,15 +1153,15 @@ function onBridgeReady(data: any) {
                 <el-descriptions-item label="论文标题">{{ formData.title }}</el-descriptions-item>
                 <el-descriptions-item label="作者">{{ formData.author }}</el-descriptions-item>
                 <el-descriptions-item v-if="formData.endTime != ''" label="发表日期">{{ formData.endTime
-                  }}</el-descriptions-item>
+                }}</el-descriptions-item>
                 <el-descriptions-item v-if="formData.fileName" label="文件名">{{ formData.fileName
-                  }}</el-descriptions-item>
+                }}</el-descriptions-item>
                 <el-descriptions-item v-if="formData.school_id" label="学校">{{ getschoolbyid(formData.school_id)
-                  }}</el-descriptions-item>
+                }}</el-descriptions-item>
                 <el-descriptions-item v-if="formData.class_code" label="学科">{{ getClassCodebyid(formData.class_code)
-                  }}</el-descriptions-item>
+                }}</el-descriptions-item>
                 <el-descriptions-item v-if="formData.class_type" label="类型">{{ getClassTypebyid(formData.class_type)
-                  }}</el-descriptions-item>
+                }}</el-descriptions-item>
                 <el-descriptions-item v-if="formData.wordCount" label="字数">{{ formData.wordCount.toLocaleString() }}
                   字</el-descriptions-item>
                 <el-descriptions-item label="件数">
