@@ -571,7 +571,7 @@ const analyzeFile = async () => {
       if (res.data.code == 0) {
         if (res.data.data.status == 2) {
           //解析完成
-          formData.wordCount = res.data.data.word_count;
+          formData.wordCount = res.data.data.words;
           formData.piece = res.data.data.piece; //件数
           formData.unit_price = res.data.data.unit_price;//单价
           formData.total_price = res.data.data.total_price;//总价
@@ -1021,7 +1021,7 @@ function onBridgeReady(data: any) {
                   <div class="product-name-mini">
                     <span class="version-badge">{{ product.name }}</span>
                     <span class="version-badge">{{ (product.price / 100) }}元/{{ convertNumberToUnit(product.unit)
-                    }}</span>
+                      }}</span>
                   </div>
                   <div class="product-description">
                     {{ product.description }}
@@ -1153,22 +1153,22 @@ function onBridgeReady(data: any) {
                 <el-descriptions-item label="论文标题">{{ formData.title }}</el-descriptions-item>
                 <el-descriptions-item label="作者">{{ formData.author }}</el-descriptions-item>
                 <el-descriptions-item v-if="formData.endTime != ''" label="发表日期">{{ formData.endTime
-                }}</el-descriptions-item>
+                  }}</el-descriptions-item>
                 <el-descriptions-item v-if="formData.fileName" label="文件名">{{ formData.fileName
-                }}</el-descriptions-item>
+                  }}</el-descriptions-item>
                 <el-descriptions-item v-if="formData.school_id" label="学校">{{ getschoolbyid(formData.school_id)
-                }}</el-descriptions-item>
+                  }}</el-descriptions-item>
                 <el-descriptions-item v-if="formData.class_code" label="学科">{{ getClassCodebyid(formData.class_code)
-                }}</el-descriptions-item>
+                  }}</el-descriptions-item>
                 <el-descriptions-item v-if="formData.class_type" label="类型">{{ getClassTypebyid(formData.class_type)
-                }}</el-descriptions-item>
+                  }}</el-descriptions-item>
                 <el-descriptions-item v-if="formData.wordCount" label="字数">{{ formData.wordCount.toLocaleString() }}
                   字</el-descriptions-item>
                 <el-descriptions-item label="件数">
-                  <span>{{ formData.piece }}件</span>
+                  {{ formData.piece }}件
                 </el-descriptions-item>
                 <el-descriptions-item label="单价">
-                  <span>{{ formData.unit_price / 100 }}元</span>
+                  {{ formData.unit_price / 100 }}元
                 </el-descriptions-item>
                 <el-descriptions-item label="总价">
                   <span class="price-text">{{ formData.total_price / 100 }}元</span>
