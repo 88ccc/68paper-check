@@ -5,10 +5,7 @@ import { storeToRefs } from "pinia"
 import { useRouter, useRoute } from 'vue-router'
 import { useWebsitConfigStore } from '@/stores/websitConfig'
 import { setTheme } from '@/utils/theme-color'
-import { useWxOpenidStore } from '@/stores/wxopenid'
-import { mySleepMs, getBrowserType } from '@/utils/utils'
-import { paxios } from '@/utils/paxios'
-const { openid } = storeToRefs(useWxOpenidStore());
+
 const { webSet, joinUrl } = storeToRefs(useWebsitConfigStore());
 const router = useRouter()
 const route = useRoute();
@@ -32,49 +29,6 @@ onMounted(async () => {
   setTheme(webSet.value.themeColor);
   document.title = webSet.value.title;
   changeFavicon(webSet.value.favicon);
-
-  try {
-
-    const browserType = getBrowserType();
-    console.log("当前浏览器类型:", browserType);
-    if (browserType == 'wechat') {
-      let currentUrl = window.location.href;
-      const code = route.query.code;
-      if (code) {
-        // 微信授权
-        let res = await paxios.post("/index/getWechatAuthUserInfo", { code: code });
-        if (res.data.code == 0) {
-          openid.value = res.data.data.openid;
-          localStorage.setItem('openid', openid.value);
-
-        } else {
-          let localtopenid = localStorage.getItem('openid');
-          if (localtopenid) {
-            openid.value = localtopenid;
-          } else {
-            ElMessage.error(res.data.msg)
-          }
-        }
-      } else {
-        let res = await paxios.post("/index/getWechatAuthUrl", { url: currentUrl });
-        if (res.data.code == 0) {
-          window.location.href = res.data.data.url;
-        } else {
-          let localtopenid = localStorage.getItem('openid');
-          if (localtopenid) {
-            openid.value = localtopenid;
-          } else {
-            //ElMessage.error(res.data.msg)
-          }
-        }
-      }
-
-    }
-  } catch (error) {
-    console.log(error);
-  }
-
-
 })
 
 function showCS() {

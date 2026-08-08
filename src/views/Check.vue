@@ -14,12 +14,10 @@ import QRCode from 'qrcode';
 import { mySleepMs, getBrowserType } from '@/utils/utils'
 import type { UploadFile, UploadFiles, UploadInstance } from 'element-plus'
 import { useProductConfigStore } from '@/stores/productConfig'
-import { useWxOpenidStore } from '@/stores/wxopenid'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 
 const cardLoading = ref(false)
 const { productList, endtimeId } = storeToRefs(useProductConfigStore());
-const { openid } = storeToRefs(useWxOpenidStore());
 const payFormRef: Ref<HTMLDivElement | null> = ref(null);
 const product = ref(<any>{});
 const route = useRoute()
@@ -908,88 +906,22 @@ async function processH5Payment() {
 
 async function processWechatPayment() {
   //判断openid是否是空的
-  if (openid.value == '') {
-    ElMessage.error('不支持在微信内支付，请用浏览器打开');
-    return;
-  }
-  let modeid = wechatSet?.modeid;
-  if (paymentMethod.value == 'alipay') {
-    modeid = AliapySet?.modeid;
-  }
-  if (!modeid) {
-    ElMessage.error('支付方式未配置');
-    return;
-  }
-  let res = await paxios.post("/index/getMPpay", { type: paymentMethod.value, orderid: orderid, amount: formData.total_price / 100, modeid: modeid, openid: openid.value })
-  if (res.data.code == 0) {
-    payId.value = res.data.data.payid;
-    let param = {
-      "appId": res.data.data.appId,     //公众号ID，由商户传入     
-      "timeStamp": res.data.data.timeStamp,    //时间戳，自1970年以来的秒数     
-      "nonceStr": res.data.data.nonceStr,      //随机串     
-      "package": res.data.data.package,
-      "signType": res.data.data.signType,     //微信签名方式：     
-      "paySign": res.data.data.paySign, //微信签名 
-    };
-    onBridgeReady(param);
-    if (timer) {
-      clearInterval(timer);
+  let cur_host = window.location.host;
+  let pay_url = "";
+  let pres = await paxios.get("/index/getJsapDomain");
+  if (pres.data.code == 0) {
+    if (pres.data.data.url) {
+      pay_url = pres.data.data.url;
     }
-    // 支付成功，轮询查询订单状态确认支付结果
-    timer = setInterval(async () => {
-      try {
-        let ret = await paxios.post("/index/payquery", { payid: payId.value });
-        if (ret.data.code == 0) {
-          if (ret.data.data.status == 1) {
-            //支付成功
-            submitOrder();
-          }
-        }
-      } catch (error) {
-        console.error('查询订单状态错误：', error);
-      }
-    }, 5000);
-  } else {
-    ElMessage.error(res.data.msg);
   }
+  if (pay_url.length < 3) {
+    ElMessage.error('获取支付域名失败');
+    return;
+  }
+  pay_url = pay_url + "/pay/check?orderid=" + orderid + "&rurl=" + cur_host;
+  window.location.href = pay_url;
 
 }
-
-function onBridgeReady(data: any) {
-  // 使用 window 访问 WeixinJSBridge，避免 TypeScript 类型错误
-  if (typeof (window as any).WeixinJSBridge === "undefined") {
-    ElMessage.error('不支持的支付方式');
-  } else {
-    (window as any).WeixinJSBridge.invoke('getBrandWCPayRequest', data,
-      function (res: any) {
-        if (res.err_msg == "get_brand_wcpay_request:ok") {
-          if (timer) {
-            clearInterval(timer);
-          }
-          // 支付成功，轮询查询订单状态确认支付结果
-          timer = setInterval(async () => {
-            try {
-              let ret = await paxios.post("/index/payquery", { payid: payId.value });
-              if (ret.data.code == 0) {
-                if (ret.data.data.status == 1) {
-                  //支付成功
-                  submitOrder();
-                }
-              }
-            } catch (error) {
-              console.error('查询订单状态错误：', error);
-            }
-          }, 5000);
-        } else if (res.err_msg == "get_brand_wcpay_request:cancel") {
-          ElMessage.info('支付已取消');
-        } else {
-          ElMessage.error('支付失败');
-        }
-      });
-  }
-}
-
-
 
 </script>
 
@@ -1021,7 +953,7 @@ function onBridgeReady(data: any) {
                   <div class="product-name-mini">
                     <span class="version-badge">{{ product.name }}</span>
                     <span class="version-badge">{{ (product.price / 100) }}元/{{ convertNumberToUnit(product.unit)
-                      }}</span>
+                    }}</span>
                   </div>
                   <div class="product-description">
                     {{ product.description }}
@@ -1153,15 +1085,15 @@ function onBridgeReady(data: any) {
                 <el-descriptions-item label="论文标题">{{ formData.title }}</el-descriptions-item>
                 <el-descriptions-item label="作者">{{ formData.author }}</el-descriptions-item>
                 <el-descriptions-item v-if="formData.endTime != ''" label="发表日期">{{ formData.endTime
-                  }}</el-descriptions-item>
+                }}</el-descriptions-item>
                 <el-descriptions-item v-if="formData.fileName" label="文件名">{{ formData.fileName
-                  }}</el-descriptions-item>
+                }}</el-descriptions-item>
                 <el-descriptions-item v-if="formData.school_id" label="学校">{{ getschoolbyid(formData.school_id)
-                  }}</el-descriptions-item>
+                }}</el-descriptions-item>
                 <el-descriptions-item v-if="formData.class_code" label="学科">{{ getClassCodebyid(formData.class_code)
-                  }}</el-descriptions-item>
+                }}</el-descriptions-item>
                 <el-descriptions-item v-if="formData.class_type" label="类型">{{ getClassTypebyid(formData.class_type)
-                  }}</el-descriptions-item>
+                }}</el-descriptions-item>
                 <el-descriptions-item v-if="formData.wordCount" label="字数">{{ formData.wordCount.toLocaleString() }}
                   字</el-descriptions-item>
                 <el-descriptions-item label="件数">
