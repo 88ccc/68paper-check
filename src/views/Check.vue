@@ -189,10 +189,10 @@ const parsePaymentMethod = function (payset: any) {
 const cardRules = reactive({
   cardid1: [
     { required: true, message: '请输入卡号', trigger: 'blur' },
-    { min: 3, max: 32, message: '请输入3-32位卡号', trigger: 'blur' },
+    { min: 3, max: 150, message: '卡号长度异常', trigger: 'blur' },
   ],
   cardid2: [
-    { min: 3, max: 32, message: '请输入3-32位卡号', trigger: 'blur' },
+    { min: 3, max: 150, message: '卡号长度异常', trigger: 'blur' },
   ]
 })
 
@@ -1081,7 +1081,7 @@ async function processWechatPayment() {
               <el-descriptions :column="2" border class="info-descriptions">
                 <el-descriptions-item :span="2" label="检测系统"><span style="color: var(--el-color-primary);">{{
                   product.name
-                    }}</span></el-descriptions-item>
+                }}</span></el-descriptions-item>
                 <el-descriptions-item label="论文标题">{{ formData.title }}</el-descriptions-item>
                 <el-descriptions-item label="作者">{{ formData.author }}</el-descriptions-item>
                 <el-descriptions-item v-if="formData.endTime != ''" label="发表日期">{{ formData.endTime
@@ -1112,7 +1112,7 @@ async function processWechatPayment() {
                   <CreditCard />
                 </template>
               </el-alert>
-              <div>
+              <div class="payment-buttons">
                 <template v-for="item in payTypeOptions" :key="item">
                   <el-button v-if="item === 'wechat'" color="#07C160" @click="handleWeChatPay">微信支付</el-button>
                   <el-button v-if="item === 'alipay'" color="#1890FF" @click="handleAlipayPay">支付宝支付</el-button>
@@ -1364,6 +1364,22 @@ async function processWechatPayment() {
   margin-bottom: 20px;
 }
 
+.payment-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: center;
+}
+
+.payment-buttons .el-button {
+  min-width: 140px;
+  height: 44px;
+  font-size: 16px;
+  font-weight: 500;
+  border: none;
+  border-radius: 8px;
+}
+
 .qr-tip {
   margin-bottom: 20px;
   color: #666;
@@ -1443,6 +1459,26 @@ async function processWechatPayment() {
   .product-price-mini {
     font-size: 13px;
   }
+
+  .payment-buttons {
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .payment-buttons .el-button {
+    width: 100%;
+    min-width: unset;
+    max-width: 360px;
+    height: 44px;
+    font-size: 15px;
+    margin-left: 0;
+  }
+
+  .payment-buttons .el-button + .el-button {
+    margin-left: 0;
+    margin-top: 10px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -1459,6 +1495,5 @@ async function processWechatPayment() {
   .step-content {
     padding: 16px;
   }
-
 }
 </style>
