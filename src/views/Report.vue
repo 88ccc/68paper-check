@@ -137,6 +137,7 @@ const queryOrder = async () => {
       payTime: res.data.data.pay_time,
       createTime: res.data.data.create_time,
       reportUrl: res.data.data.report_url,
+      failReason: res.data.data.remark
     }
 
     // 如果正在处理，启动自动刷新

@@ -575,7 +575,14 @@ const analyzeFile = async () => {
           formData.total_price = res.data.data.total_price;//总价
           break;
         } else if (res.data.data.status == 3) {
-          ElMessage.error("解析失败");
+          let err_msg = "解析失败";
+          if(res.data.data.remark){
+            err_msg =err_msg+":"+ res.data.data.remark;
+          }
+          ElMessageBox.alert(err_msg, '提示', {
+            confirmButtonText: '确定',
+            type: 'error'
+          });
           break;
         }
       }
@@ -607,6 +614,8 @@ const nextStep = async () => {
       ElMessage.error("该产品不可用");
       return;
     }
+    formData.title = formData.title.trim();
+    formData.author = formData.author.trim();
     if (!formData.title) {
       ElMessage.warning('请输入标题')
       return
