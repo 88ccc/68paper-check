@@ -48,6 +48,7 @@ const orderNo = ref('')
 const orderInfo = ref<OrderInfo | null>(null)
 const loading = ref(false)
 const autoRefreshTimer = ref<ReturnType<typeof setTimeout> | null>(null)
+const showTips = ref(true);
 
 
 function getproductName(productid: string) {
@@ -122,6 +123,7 @@ const queryOrder = async () => {
       loading.value = false
       return;
     }
+    showTips.value = false;
 
     let orderstatus = getstatusStr(res.data.data.status);
     let product = getproductName(res.data.data.product_id);
@@ -276,18 +278,27 @@ const handleRefund = async () => {
         <div class="search-box">
           <el-form :inline="true" class="queryform" label-width="20px">
             <el-form-item>
-              <el-input v-model="orderNo" placeholder="请输入卡号"></el-input>
+              <el-input v-model="orderNo" placeholder="请输入订单号或卡号"></el-input>
             </el-form-item>
             <el-form-item>
               <el-button type="primary" @click="queryOrder">查询</el-button>
             </el-form-item>
           </el-form>
+          <div v-show="showTips">
+             <el-tooltip content="<span style='font-size: 16px;'>支付宝付款记录中的“商户订单号”就是订单号</span><br/><br/><img src='/images/zfbpayid.png'>" raw-content>
+            <span>支付宝订单号？</span>
+          </el-tooltip>
+          <el-tooltip  content="<span style='font-size: 16px;'>微信付款记录中的“商户单号”就是订单号</span><br/><br/><img src='/images/wxpayid.png'>" raw-content>
+            <span style="margin-left: 20px;font-size: 14px;">微信订单号？</span>
+          </el-tooltip>
           <el-alert type="primary" :closable="false">
             <template #default>
-              填写检测时的"卡号"，查询报告。如果一次检测用了多个卡号，任意一个卡号即可查询报告。<span
+              填写检测时的"卡号"或“订单号"，查询报告。如果一次检测用了多个卡号，任意一个卡号即可查询报告。<span
                 style="color: var(--el-color-danger);">报告仅保留7天，请及时下载报告。</span>
             </template>
           </el-alert>
+          </div>
+         
         </div>
       </div>
 
@@ -509,208 +520,272 @@ const handleRefund = async () => {
 </template>
 
 <style scoped>
+/* ---------- 查询表单 ---------- */
 :deep(.el-form--inline .el-form-item) {
-  margin-right: 8px !important;
+  margin-right: 12px !important;
+  margin-bottom: 0 !important;
 }
 
 :deep(.el-form--inline .el-input__wrapper) {
-  min-width: 200px;
   width: auto;
+  min-width: 200px;
 }
 
 .search-box :deep(.el-input__wrapper) {
-  min-width: 280px;
-  transition: min-width 0.3s ease;
+  width: 100%;
+  min-width: 240px;
+  height: 44px;
+  padding-left: 20px;
+  border-radius: 22px;
+  box-shadow: 0 0 0 1px var(--el-color-primary-light-7) inset;
+  transition: box-shadow 0.25s ease;
 }
 
-@media (max-width: 768px) {
-  .search-box :deep(.el-input__wrapper) {
-    min-width: 200px;
-  }
+.search-box :deep(.el-input__wrapper:hover) {
+  box-shadow: 0 0 0 1px var(--el-color-primary-light-5) inset;
 }
 
-@media (max-width: 480px) {
-  .search-box :deep(.el-input__wrapper) {
-    min-width: 160px;
-  }
+.search-box :deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px var(--el-color-primary) inset,
+    0 0 0 3px var(--el-color-primary-light-8);
 }
 
+/* 标题装饰线 */
 .queryhr {
-  margin-top: 10px;
-  margin-bottom: 10px;
+  width: 64px;
+  height: 4px;
+  border: none;
+  border-radius: 2px;
+  margin: 0 auto 28px;
+  background: linear-gradient(90deg, var(--el-color-primary) 0%,
+      var(--el-color-primary-light-5) 100%);
 }
 
-.pppoprefimg {
-  width: 21px;
-  vertical-align: middle;
-  margin-right: 5px;
-}
-
-.querypopover {
-  margin-left: 25px;
-}
-
-.querypopover .popimg {
-  max-width: 100%;
-}
-
-.popover-content {
-  padding: 8px;
-}
-
-.popover-content p {
-  margin: 6px 0;
-  line-height: 1.6;
-  color: #606266;
-  font-size: 13px;
-}
-
+/* ---------- 页面容器 ---------- */
 .report-page {
   min-height: calc(100vh - 188px);
   display: flex;
   flex-direction: column;
-  background: var(--el-color-primary-light-9);
+  background: linear-gradient(180deg, var(--el-color-primary-light-9) 0%,
+      var(--el-color-primary-light-8) 100%);
 }
 
 .main-container {
   flex: 1;
   max-width: 900px;
-  margin: 40px auto;
+  margin: 44px auto;
   padding: 0 20px;
   width: 100%;
 }
 
 .page-header {
   text-align: center;
-  margin-bottom: 10px;
+  margin-bottom: 14px;
 }
 
 .page-header h1 {
-  font-size: 32px;
-  color: #333;
-  margin-bottom: 12px;
-}
-
-.header-desc {
-  font-size: 15px;
-  color: #666;
-  line-height: 1.8;
-}
-
-.help-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  font-size: 16px;
+  font-size: 34px;
   font-weight: 600;
-  color: #333;
-}
-
-.help-text {
-  color: #666;
-  line-height: 1.8;
-  font-size: 14px;
+  letter-spacing: 1px;
+  color: #303133;
   margin: 0;
 }
 
-.help-text strong {
-  color: #333;
-}
-
-
-
-/* 搜索区域 */
+/* ---------- 搜索区域 ---------- */
 .search-section {
-  margin-bottom: 40px;
+  margin-bottom: 32px;
 }
 
 .search-box {
-  max-width: 600px;
+  max-width: 640px;
   margin: 0 auto;
+  padding: 28px 28px 22px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  text-align: center;
 }
 
-/* 结果区域 */
+.search-box :deep(.el-form) {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.search-box :deep(.el-button) {
+  height: 44px;
+  padding: 0 28px;
+  border-radius: 22px;
+  font-size: 15px;
+  font-weight: 500;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.search-box :deep(.el-button:hover) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px var(--el-color-primary-light-7);
+}
+
+/* 订单号提示 */
+.search-box :deep(.el-tooltip__trigger) {
+  display: inline-block;
+  margin-top: 16px;
+}
+
+.search-box :deep(.el-tooltip__trigger) span {
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+  border: 1px solid var(--el-color-primary-light-8);
+  border-radius: 14px;
+  padding: 4px 12px;
+  cursor: help;
+  transition: all 0.25s ease;
+}
+
+.search-box :deep(.el-tooltip__trigger:hover) span {
+  color: #fff;
+  background: var(--el-color-primary);
+  border-color: var(--el-color-primary);
+}
+
+.search-box :deep(.el-alert) {
+  margin-top: 16px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--el-color-primary-light-9);
+  border: 1px solid var(--el-color-primary-light-8);
+}
+
+.search-box :deep(.el-alert__content) {
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.8;
+  color: #606266;
+}
+
+/* ---------- 结果区域 ---------- */
 .result-section {
   margin-bottom: 40px;
+  animation: fade-up 0.35s ease both;
 }
 
 .result-card {
   background: #fff;
-  border-radius: 12px;
+  border-radius: 16px;
   padding: 40px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border-top: 4px solid var(--el-color-primary);
+  transition: box-shadow 0.3s ease;
+}
+
+.result-card:hover {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+.result-card.not-found {
+  border-top-color: var(--el-color-warning);
+}
+
+.result-card.processing {
+  border-top-color: var(--el-color-primary);
+}
+
+.result-card.completed {
+  border-top-color: var(--el-color-success);
+}
+
+.result-card.failed {
+  border-top-color: var(--el-color-danger);
 }
 
 .status-wrapper {
   text-align: center;
-  margin-bottom: 30px;
+  margin-bottom: 28px;
 }
 
 .status-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 100px;
-  height: 100px;
+  width: 104px;
+  height: 104px;
   border-radius: 50%;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
 }
 
 .status-icon.warning {
   background: var(--el-color-warning-light-9);
   color: var(--el-color-warning);
+  box-shadow: 0 0 0 8px var(--el-color-warning-light-8);
 }
 
 .status-icon.processing {
   background: var(--el-color-primary-light-9);
   color: var(--el-color-primary);
+  box-shadow: 0 0 0 8px var(--el-color-primary-light-8);
+  animation: breathe 2s ease-in-out infinite;
 }
 
 .status-icon.success {
   background: var(--el-color-success-light-9);
   color: var(--el-color-success);
+  box-shadow: 0 0 0 8px var(--el-color-success-light-8);
 }
 
 .status-icon.error {
   background: var(--el-color-danger-light-9);
   color: var(--el-color-danger);
+  box-shadow: 0 0 0 8px var(--el-color-danger-light-8);
 }
 
 .status-title {
-  font-size: 24px;
-  color: #333;
-  margin-bottom: 8px;
+  font-size: 23px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0;
+  line-height: 1.5;
 }
 
 .status-desc {
-  font-size: 16px;
-  color: #666;
-  margin: 0;
+  font-size: 15px;
+  color: #909399;
+  margin: 8px 0 0;
 }
 
-/* 订单信息 */
+/* ---------- 订单信息 ---------- */
 .order-info {
-  background: #f5f7fa;
-  padding: 24px;
-  border-radius: 8px;
+  background: linear-gradient(180deg, #f7f9fc 0%, #fff 100%);
+  border: 1px solid var(--el-border-color-lighter);
+  border-left: 4px solid var(--el-color-primary);
+  border-radius: 12px;
+  padding: 22px 24px;
   margin-bottom: 24px;
 }
 
 .info-title {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 600;
-  color: #333;
+  color: #303133;
+  line-height: 1.6;
   margin-bottom: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #e4e7ed;
+  padding-bottom: 14px;
+  border-bottom: 1px dashed var(--el-border-color-lighter);
 }
 
 .info-product {
-  font-size: 14px;
-  font-weight: 400;
+  display: inline-block;
+  vertical-align: middle;
+  font-size: 12px;
+  font-weight: 500;
   color: var(--el-color-primary);
-  margin-right: 10px;
+  background: var(--el-color-primary-light-9);
+  border: 1px solid var(--el-color-primary-light-8);
+  border-radius: 10px;
+  padding: 2px 10px;
+  margin-right: 8px;
 }
 
 .info-details {
@@ -718,72 +793,103 @@ const handleRefund = async () => {
 }
 
 .detail-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  gap: 20px;
+  gap: 12px 18px;
 }
 
 .detail-spacer {
-  flex: 1;
+  display: none;
 }
 
 .detail-label {
-  color: #666;
+  color: #909399;
   font-size: 14px;
+  white-space: nowrap;
 }
 
 .detail-value {
-  color: #333;
+  color: #303133;
   font-size: 14px;
+  font-weight: 500;
+  word-break: break-all;
 }
 
-/* 提示框 */
+/* ---------- 提示框 ---------- */
 .tip-box {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  padding: 16px;
-  border-radius: 8px;
-  margin-bottom: 24px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  background: var(--el-color-warning-light-9);
+  border-left: 4px solid var(--el-color-warning);
 }
 
 .tip-box.info {
   background: var(--el-color-primary-light-9);
-  border: 1px solid var(--el-color-primary-light-7);
+  border-left-color: var(--el-color-primary);
 }
 
 .tip-box.warning {
-  background: #fef0f0;
-  border: 2px solid var(--el-color-danger);
+  background: var(--el-color-danger-light-9);
+  border-left-color: var(--el-color-danger);
 }
 
 .tip-box p {
   margin: 0;
   font-size: 14px;
-  line-height: 1.6;
+  line-height: 1.7;
+  color: #606266;
 }
 
 .tip-box.warning p strong {
   color: var(--el-color-danger);
 }
 
-/* 操作按钮 */
+.tip-box :deep(.el-alert) {
+  flex: 1;
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+
+.tip-box :deep(.el-alert__title) {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #606266;
+}
+
+/* ---------- 操作按钮 ---------- */
 .action-buttons {
   display: flex;
-  gap: 12px;
+  gap: 14px;
   justify-content: center;
   flex-wrap: wrap;
 }
 
 .action-buttons .el-button {
   padding: 12px 32px;
-  font-size: 16px;
+  font-size: 15px;
+  font-weight: 500;
+  border-radius: 24px;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 
-/* 加载状态 */
+.action-buttons .el-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
+}
+
+/* ---------- 加载状态 ---------- */
 .loading-container {
   text-align: center;
-  padding: 80px 20px;
+  padding: 70px 20px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   color: var(--el-color-primary);
 }
 
@@ -792,51 +898,51 @@ const handleRefund = async () => {
 }
 
 .loading-container p {
-  font-size: 18px;
-  color: #666;
-}
-
-/* 二维码弹窗 */
-.qr-dialog-content {
-  text-align: center;
-  padding: 20px 0;
-}
-
-.qr-image-container {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 20px;
-}
-
-.qr-code-image {
-  width: 250px;
-  height: 250px;
-  border-radius: 12px;
-  border: 2px solid #e4e7ed;
-}
-
-.qr-tip {
   font-size: 16px;
-  color: #333;
-  margin-bottom: 8px;
-  font-weight: 500;
-}
-
-.qr-tip-sub {
-  font-size: 14px;
-  color: #999;
+  color: #909399;
   margin: 0;
 }
 
+/* ---------- 动画 ---------- */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
 
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 
+@keyframes breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 8px var(--el-color-primary-light-8);
+  }
+
+  50% {
+    box-shadow: 0 0 0 14px var(--el-color-primary-light-9);
+  }
+}
+
+/* ---------- 响应式 ---------- */
 @media (max-width: 768px) {
+  .main-container {
+    margin: 28px auto;
+  }
+
   .page-header h1 {
     font-size: 26px;
   }
 
-  .header-desc {
-    font-size: 14px;
+  .search-box {
+    padding: 22px 18px 18px;
+  }
+
+  .search-box :deep(.el-input__wrapper) {
+    min-width: 180px;
   }
 
   .result-card {
@@ -844,13 +950,7 @@ const handleRefund = async () => {
   }
 
   .detail-row {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
-
-  .detail-spacer {
-    display: none;
+    grid-template-columns: auto minmax(0, 1fr);
   }
 
   .action-buttons {
@@ -859,13 +959,17 @@ const handleRefund = async () => {
 
   .action-buttons .el-button {
     width: 100%;
+    margin-left: 0 !important;
   }
 
   .status-title {
     font-size: 20px;
   }
 
-
+  .status-icon {
+    width: 88px;
+    height: 88px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -880,6 +984,11 @@ const handleRefund = async () => {
 
   .order-info {
     padding: 16px;
+  }
+
+  .status-icon {
+    width: 76px;
+    height: 76px;
   }
 }
 </style>
