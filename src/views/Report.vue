@@ -375,10 +375,6 @@ const handleRefund = async () => {
               </div>
             </div>
           </div>
-          <div class="tip-box">
-            <el-alert title="预计半小时左右出报告" type="primary" :closable="false" />
-          </div>
-
           <div class="tip-box info">
             <el-icon color="var(--el-color-primary)" :size="18">
               <Refresh />
