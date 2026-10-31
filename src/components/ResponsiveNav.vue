@@ -16,6 +16,7 @@ const dialogWidth = ref('450px')
 const phone = ref('')
 const lxqq = ref('')
 const lxwx = ref("");
+const showkf = ref(true);
 
 const navItems = [
   { label: '首页', path: '/' },
@@ -27,6 +28,7 @@ const navItems = [
 onMounted(async () => {
   let res = await paxios.get('/check/get_customer');
   if (res.data.code === 0) {
+    showkf.value = true;
     if (res.data.data.phone) {
       phone.value = res.data.data.phone
     }
@@ -36,7 +38,10 @@ onMounted(async () => {
     if (res.data.data.wechat) {
       lxwx.value = res.data.data.wechat
     }
+  } else {
+    showkf.value = false;
   }
+  emit('updateKf', showkf.value)
 })
 
 const handleNav = (path: string) => {
@@ -48,11 +53,13 @@ function showCS() {
   dialogVisible.value = true
 }
 
-function openJoinUrl(){
-  window.open(joinUrl.value,"_blank")
+function openJoinUrl() {
+  window.open(joinUrl.value, "_blank")
 }
 
-defineExpose({showCS});
+const emit = defineEmits(['updateKf'])
+
+defineExpose({ showCS });
 </script>
 
 <template>
@@ -75,7 +82,7 @@ defineExpose({showCS});
       <el-button v-for="item in navItems" :key="item.label" text @click="handleNav(item.path)">
         {{ item.label }}
       </el-button>
-      <el-button key="cs" text @click="showCS">
+      <el-button v-if="showkf" key="cs" text @click="showCS">
         联系客服
       </el-button>
       <el-button v-if="joinUrl" key="join" text @click="openJoinUrl">
@@ -97,11 +104,11 @@ defineExpose({showCS});
         <div v-for="item in navItems" :key="item.label" class="mobile-menu-item" @click="handleNav(item.path)">
           {{ item.label }}
         </div>
-        <div key="cs" class="mobile-menu-item" text @click="showCS">
+        <div key="cs" v-if="showkf" class="mobile-menu-item" text @click="showCS">
           联系客服
         </div>
-        <div key="join" class="mobile-menu-item" text @click="openJoinUrl">
-          联系客服
+        <div v-if="joinUrl" key="join" class="mobile-menu-item" text @click="openJoinUrl">
+          加盟代理
         </div>
       </div>
     </transition>

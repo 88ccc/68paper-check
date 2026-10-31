@@ -1,25 +1,37 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useProductConfigStore } from '@/stores/productConfig'
 import { storeToRefs } from "pinia"
 import { useWebsitConfigStore } from '@/stores/websitConfig'
 import { paxios } from '@/utils/paxios'
+import { useLayoutConfigStore } from '@/stores/layoutConfig'
 const { webSet } = storeToRefs(useWebsitConfigStore());
+
+const { homeProductArray } = storeToRefs(useLayoutConfigStore());
 
 const { productList } = storeToRefs(useProductConfigStore());
 
 const router = useRouter()
 
 const prodectUserNotice = ref("");
+const nowGroup = ref("全部");
+
+
+function setShowGroup(group: string) {
+  nowGroup.value = group;
+  nextTick(() => {
+    document.getElementById('myproduct')?.scrollIntoView({ behavior: 'smooth' });
+  });
+}
 
 // 跳转到检测页面
-const goToCheck = (type: string) => {
-  if (type.length < 2) {
-    document.getElementById('myproduct')?.scrollIntoView({ behavior: 'smooth' });
-    return;
-  }
-  router.push({ name: 'Check', query: { type } })
+const goToCheck = (id: string, path: string) => {
+  // if (type.length < 2) {
+  //   document.getElementById('myproduct')?.scrollIntoView({ behavior: 'smooth' });
+  //   return;
+  // }
+  router.push({ path: path, query: { type: id } })
 }
 
 function convertNumberToUnit(num: number) {
@@ -62,6 +74,10 @@ onMounted(async () => {
   }
 
 })
+
+function getProduct(id: string) {
+  return productList.value.find(item => item.id === id);
+}
 
 
 </script>
@@ -130,7 +146,7 @@ onMounted(async () => {
         <p>满足不同学术场景的检测需求</p>
       </div>
       <!--产品列表-->
-      <div>
+      <div v-if="homeProductArray.length <= 0">
         <el-row>
           <el-col v-for="item in productList" :key="item.id" :xs="24" :sm="12" :md="12" :lg="6" :xl="6">
 
@@ -143,16 +159,53 @@ onMounted(async () => {
               <div style="padding: 5px 15px; min-height: 80px;">
                 <p>{{ item.description }}</p>
               </div>
-              <h5>{{ (item.price / 100).toFixed(2) }}元/{{ convertNumberToUnit(item.unit) }}</h5>
+              <h5 v-if="item.price > 0">{{ (item.price / 100).toFixed(2) }}元/{{ convertNumberToUnit(item.unit) }}</h5>
               <div style="text-align: center">
-                <el-button type="primary" @click="goToCheck(item.id)">去检测</el-button>
+                <el-button type="primary" @click="goToCheck(item.id, item.path)">去检测</el-button>
               </div>
             </div>
           </el-col>
         </el-row>
       </div>
-    </div>
+      <div v-else>
+        <div v-if="homeProductArray.length > 1"
+          style="display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 10px;">
+          <el-button :type="nowGroup == '全部' ? 'primary' : 'default'" plain @click="setShowGroup('全部')">全部</el-button>
+          <el-button v-for="brand in homeProductArray" :key="brand.title"
+            :type="nowGroup == brand.title ? 'primary' : 'default'" plain @click="setShowGroup(brand.title)">{{
+              brand.title }}</el-button>
+        </div>
 
+        <div v-for="brand in homeProductArray" :key="brand.title" v-show="nowGroup == brand.title || nowGroup == '全部'">
+          <el-divider />
+          <div style="margin-bottom: 10px;">
+            <h3 style="text-align: center;font-size: 24px;">{{ brand.title }}</h3>
+            <div v-if="brand.desc">
+              <el-alert :title="brand.desc" type="info" :closable="false" />
+            </div>
+          </div>
+          <el-row>
+            <el-col v-for="pid in brand.products" :key="pid" :xs="24" :sm="12" :md="12" :lg="6" :xl="6">
+              <div class="checkitem" v-if="getProduct(pid)">
+                <div style="text-align: center;margin-top: 10px">
+                  <img :src="getProduct(pid).img">
+                </div>
+                <hr />
+                <h4>{{ getProduct(pid).name }}</h4>
+                <div style="padding: 5px 15px; min-height: 80px;">
+                  <p>{{ getProduct(pid).description }}</p>
+                </div>
+                <h5 v-if="getProduct(pid).price > 0">{{ (getProduct(pid).price / 100).toFixed(2) }}元/{{ convertNumberToUnit(getProduct(pid).unit) }}</h5>
+                <div style="text-align: center">
+                  <el-button type="primary" @click="goToCheck(getProduct(pid).id, getProduct(pid).path)">去检测</el-button>
+                </div>
+              </div>
+            </el-col>
+          </el-row>
+
+        </div>
+      </div>
+    </div>
 
   </div>
 </template>

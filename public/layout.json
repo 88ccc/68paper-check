@@ -1,0 +1,48 @@
+{
+    "home": {
+        "data": [
+            {
+                "title": "万方查重",
+                "desc": "万方文献相似性查重检测服务采用科学先进的检测技术，实现海量学术文献数据全文比对，秉持客观、公正、精准、全面的服务原则，为用户提供精准详实多维度的查重检测报告。提供包括万方通用版、硕博论文版、大学生论文版、职称论文版等，查重检测结果客观、准确、详实！",
+                "products": "wanfangbk,wanfangsb,wanfanggz,wanfangqk,wanfangty,wanfangzc,wanfangzy,wanfangzz"
+            },
+            {
+                "title": "万方AIGC检测",
+                "desc": "万方是国内知名品牌，众多机构指定品牌。万方AIGC检测可以检测文章是否有AI生成，24小时自助完成， 检测报告支持官网验证真伪。 ",
+                "products": "wanfangaigc"
+            },
+            {
+                "title": "维普查重",
+                "desc": "维普论文检测系统入口提供24小时在线论文查重，可以快速准确地检测出论文中过度和不当的引用及抄袭伪造篡改等学术不端行为。 检测报告支持官网验证真伪。 维普查重有多个版本，大学生版，研究生版，职称版 等等。满足各类人群的需要。",
+                "products": "cqvip,cqvipmd,cqvipqk,cqvipzc,cqvipzy,cqvipky"
+            },
+            {
+                "title": "维普AIGC检测",
+                "desc": "维普AIGC检测可以检测文章是否有AI生成，24小时自助完成， 检测报告支持官网验证真伪。 维普AIGC检测有多个版本，大学生版，研究生版，职称版等等。满足各类人群的需要。",
+                "products": "cqvipaidxs,cqvipaiyjs,cqvipaiqk,cqvipaizc,cqvipaizy,cqvipaiky"
+            },
+            {
+                "title": "维普智评",
+                "desc": "维普智评系统，是利用人工智能技术，对论文质量进行自动化分析，智能化地给出论文质量评分。 检测报告支持官网验证真伪，保证正品",
+                "products": "cqvipzpdxs,cqvipzpyjs,cqvipzpqk"
+            },
+            {
+                "title": "Turnitin",
+                "desc": "Turnitin 是全球领先的学术诚信检测系统，在全球多个国家多加机构广泛使用",
+                "products": "turnitin,turnitinuk,turnitinai"
+            },
+            {
+                "title": "其他检测品牌",
+                "desc": "市面是一些其他检测品牌各有特色，请按需选择。请注意不同的品牌，检测结果会不一样。",
+                "products": "checkpass,paperpass,paperyy"
+            },
+            {
+                "title": "降重降AI",
+                "desc": "市面上有一些自动降重和降AI工具，属于辅助性工具，不能保证100%有效，请按需选择",
+                "products": "zjchong,zjcaigc,rewritepro"
+            }
+            
+            
+        ]
+    }
+}

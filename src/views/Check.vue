@@ -16,6 +16,7 @@ import type { UploadFile, UploadFiles, UploadInstance } from 'element-plus'
 import { useProductConfigStore } from '@/stores/productConfig'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 
+const onlyCard = ref(false);
 const cardLoading = ref(false)
 const { productList, endtimeId } = storeToRefs(useProductConfigStore());
 const payFormRef: Ref<HTMLDivElement | null> = ref(null);
@@ -25,10 +26,6 @@ const router = useRouter()
 const loading = ref(false);
 const txtupload = ref(true);
 const needEndTime = ref(false);
-const currHasSchool = ref(false);
-const currHasSchool_x = ref(false);
-const currHasClassCode = ref(false);
-const currHasClassType = ref(false);
 const showCardDialog = ref(false);
 const pricetips = ref("");
 const dialogWidth = ref('600px')
@@ -73,36 +70,6 @@ const cardForm = reactive({
   cardid1: '',
   cardid2: ''
 })
-
-interface WPZPPARAM {
-  value: string;
-  name: string;
-}
-const wpzpSchoolId = ref<WPZPPARAM[]>([]);
-const wpzpClassCode = ref<WPZPPARAM[]>([]);
-const wpzpClassType = ref<WPZPPARAM[]>([]);
-
-// 将 wpzpSchoolId 转换为 el-select-v2 需要的格式
-const schoolOptions = computed(() => {
-  return wpzpSchoolId.value.map(item => ({
-    label: item.name,
-    value: item.value
-  }));
-});
-
-function getschoolbyid(id: string) {
-  return wpzpSchoolId.value.find(item => item.value === id)?.name || '';
-}
-
-function getClassCodebyid(id: string) {
-  return wpzpClassCode.value.find(item => item.value === id)?.name || '';
-}
-
-function getClassTypebyid(id: string) {
-
-  return wpzpClassType.value.find(item => item.value === id)?.name || '';
-
-}
 
 function convertNumberToUnit(num: number) {
   // 转为有效数字
@@ -182,6 +149,11 @@ const parsePaymentMethod = function (payset: any) {
       payTypeOptions.value.push("card");
     }
   }
+  if (payTypeOptions.value.length == 1) {
+    if (payTypeOptions.value[0] == "card") {
+      onlyCard.value = true;
+    }
+  }
 
 
 };
@@ -201,9 +173,6 @@ const formData = reactive({
   title: '',
   endTime: '',
   author: '',
-  school_id: "",
-  class_code: "",
-  class_type: "",
   uploadType: 'file',
   file: null as File | null,
   text: '',
@@ -301,34 +270,6 @@ onMounted(async () => {
     loading.value = false;
   }
 
-  //获取参数
-  let res1j = await fetch('/wpzp_param.json');
-  let res1 = await res1j.json();
-  if (res1.code === 0) {
-    wpzpSchoolId.value = res1.school;
-    wpzpClassCode.value = res1.classcode;
-    wpzpClassType.value = res1.classtype;
-  }
-
-  if (productid == "cqvipzpdxs") {
-    currHasSchool_x.value = true;
-  } else {
-    currHasSchool_x.value = false;
-  }
-  if (productid == "cqvipzpyjs") {
-    currHasSchool.value = true;
-    currHasClassCode.value = true;
-  } else {
-    currHasClassCode.value = false;
-    currHasSchool.value = false;
-  }
-
-  if (productid == "cqvipzpqk") {
-    currHasClassType.value = true;
-  } else {
-    currHasClassType.value = false;
-  }
-
 })
 
 onUnmounted(() => {
@@ -384,15 +325,17 @@ async function toUploadFile(file: File) {
       return;
     }
     const formDataObj = new FormData()
-    formDataObj.append('user_id', res.data.data.user_id);
-    formDataObj.append('timestamp', res.data.data.timestamp);
-    formDataObj.append('product_id', res.data.data.product_id);
-    formDataObj.append('notify', res.data.data.notify);
-    formDataObj.append('sign', res.data.data.sign);
+    const dataobj = res.data.data as Record<string, string | number>;
+    for (const [key, value] of Object.entries(dataobj)) {
+      if (key != "url") {
+        formDataObj.append(key, String(value));
+      }
+    }
+    let upUrl = res.data.data.url;
     if (file) {
       formDataObj.append('file', file)
     }
-    const res1 = await paxios.post('https://ck.88xuezi.cn/api/upload_file', formDataObj, {
+    const res1 = await paxios.post(upUrl, formDataObj, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
@@ -416,7 +359,6 @@ async function toUploadFile(file: File) {
   } finally {
     loading.value = false;
   }
-
 }
 
 
@@ -510,10 +452,7 @@ async function report_info() {
       order_id: orderid,
       title: formData.title,
       author: formData.author,
-      end_date: formData.endTime,
-      school_id: formData.school_id,
-      class_code: formData.class_code,
-      class_type: formData.class_type
+      end_date: formData.endTime
     });
 
     if (res.data.code != 0) {
@@ -571,13 +510,19 @@ const analyzeFile = async () => {
           //解析完成
           formData.wordCount = res.data.data.words;
           formData.piece = res.data.data.piece; //件数
-          formData.unit_price = res.data.data.unit_price;//单价
-          formData.total_price = res.data.data.total_price;//总价
+          if (res.data.data.unit_price) {
+            formData.unit_price = res.data.data.unit_price;//单价
+            formData.total_price = res.data.data.total_price;//总价
+          } else {
+            formData.unit_price = 0;
+            formData.total_price = 0;
+          }
+
           break;
         } else if (res.data.data.status == 3) {
           let err_msg = "解析失败";
-          if(res.data.data.remark){
-            err_msg =err_msg+":"+ res.data.data.remark;
+          if (res.data.data.remark) {
+            err_msg = err_msg + ":" + res.data.data.remark;
           }
           ElMessageBox.alert(err_msg, '提示', {
             confirmButtonText: '确定',
@@ -961,7 +906,8 @@ async function processWechatPayment() {
                 <div class="product-details">
                   <div class="product-name-mini">
                     <span class="version-badge">{{ product.name }}</span>
-                    <span class="version-badge">{{ (product.price / 100) }}元/{{ convertNumberToUnit(product.unit)
+                    <span class="version-badge" v-if="product.price > 0">{{ (product.price / 100) }}元/{{
+                      convertNumberToUnit(product.unit)
                     }}</span>
                   </div>
                   <div class="product-description">
@@ -994,26 +940,6 @@ async function processWechatPayment() {
                   <el-date-picker v-model="formData.endTime" type="date" format="YYYY-MM-DD"
                     value-format="YYYY-MM-DD" />
                 </el-form-item>
-                <el-form-item v-if="currHasSchool" label="学校" prop="school_id">
-                  <el-select-v2 v-model="formData.school_id" filterable :options="schoolOptions" placeholder="请选择学校"
-                    clearable />
-                </el-form-item>
-                <el-form-item v-if="currHasSchool_x" label="学校">
-                  <el-select-v2 v-model="formData.school_id" filterable :options="schoolOptions"
-                    placeholder="请选择学校,可以不填" clearable />
-                </el-form-item>
-                <el-form-item v-if="currHasClassCode" label="学科" prop="class_code">
-                  <el-select v-model="formData.class_code" placeholder="请选择学科" clearable>
-                    <el-option v-for="item in wpzpClassCode" :key="item.value" :label="item.name" :value="item.value" />
-                  </el-select>
-                </el-form-item>
-                <el-form-item v-if="currHasClassType" label="类型" prop="class_type">
-                  <el-select v-model="formData.class_type" placeholder="请选择类型" clearable>
-                    <el-option v-for="item in wpzpClassType" :key="item.value" :label="item.name" :value="item.value" />
-                  </el-select>
-                </el-form-item>
-
-
                 <el-form-item label="上传方式">
                   <el-radio-group v-model="formData.uploadType">
                     <el-radio value="file">上传文件</el-radio>
@@ -1097,42 +1023,74 @@ async function processWechatPayment() {
                 }}</el-descriptions-item>
                 <el-descriptions-item v-if="formData.fileName" label="文件名">{{ formData.fileName
                 }}</el-descriptions-item>
-                <el-descriptions-item v-if="formData.school_id" label="学校">{{ getschoolbyid(formData.school_id)
-                }}</el-descriptions-item>
-                <el-descriptions-item v-if="formData.class_code" label="学科">{{ getClassCodebyid(formData.class_code)
-                }}</el-descriptions-item>
-                <el-descriptions-item v-if="formData.class_type" label="类型">{{ getClassTypebyid(formData.class_type)
-                }}</el-descriptions-item>
                 <el-descriptions-item v-if="formData.wordCount" label="字数">{{ formData.wordCount.toLocaleString() }}
                   字</el-descriptions-item>
                 <el-descriptions-item label="件数">
-                  {{ formData.piece }}件
+                  <span :class="{ 'price-text': onlyCard }">{{ formData.piece }}件</span>
                 </el-descriptions-item>
-                <el-descriptions-item label="单价">
+                <el-descriptions-item v-if="formData.unit_price > 0" label="单价">
                   {{ formData.unit_price / 100 }}元
                 </el-descriptions-item>
-                <el-descriptions-item label="总价">
+                <el-descriptions-item v-if="formData.total_price > 0" label="总价">
                   <span class="price-text">{{ formData.total_price / 100 }}元</span>
                 </el-descriptions-item>
               </el-descriptions>
+              <div v-if="onlyCard">
+                <el-card style="margin-top: 15px;">
 
-              <el-alert title="请选择支付方式" type="success" :closable="false" show-icon class="payment-alert">
-                <template #icon>
-                  <CreditCard />
-                </template>
-              </el-alert>
-              <div class="payment-buttons">
-                <template v-for="item in payTypeOptions" :key="item">
-                  <el-button v-if="item === 'wechat'" color="#07C160" @click="handleWeChatPay">微信支付</el-button>
-                  <el-button v-if="item === 'alipay'" color="#1890FF" @click="handleAlipayPay">支付宝支付</el-button>
-                  <el-button v-if="item === 'card'" color="#626aef" @click="handleCardPay">检测卡</el-button>
-                </template>
+                  <el-form style="max-width: 600px" :model="cardForm" :rules="cardRules" label-width="auto">
+                    <div style="font-size: 20px;color: blue;margin: 10px 5px;">
+                      <el-icon>
+                        <CreditCard />
+                      </el-icon> 检测卡
+                    </div>
+                    <el-form-item>
+                      <p style="font-size:12px;color:green;margin-top: 0px;margin-bottom: 0px;">
+                        温馨提醒：你需要购买 <span style="font-size: 18px;color:red">{{ formData.piece }}</span> 件 <span
+                          style="color: var(--el-color-primary);">{{
+                            product.name }}</span>
+                      </p>
+                    </el-form-item>
+                    <el-form-item label="卡号" prop="cardid1">
+                      <el-input v-model="cardForm.cardid1" />
+                    </el-form-item>
+                    <el-form-item label="备用卡号" prop="cardid2">
+                      <el-input v-model="cardForm.cardid2" />
+                    </el-form-item>
+                    <el-form-item>
+                      <p style="font-size:12px;color:red;margin-top: 0px;">
+                        备用卡号可以不填，如果填写，会将卡号的额度合并使用</p>
+                    </el-form-item>
+                    <el-form-item>
+                      <el-button type="primary" @click="submitCard">提交</el-button>
+                      <el-button @click="showCardDialog = false">取消</el-button>
+                    </el-form-item>
+
+                  </el-form>
+                </el-card>
+
               </div>
+              <div v-else>
+                <el-alert title="请选择支付方式" type="success" :closable="false" show-icon class="payment-alert">
+                  <template #icon>
+                    <CreditCard />
+                  </template>
+                </el-alert>
+                <div class="payment-buttons">
+                  <template v-for="item in payTypeOptions" :key="item">
+                    <el-button v-if="item === 'wechat'" color="#07C160" @click="handleWeChatPay">微信支付</el-button>
+                    <el-button v-if="item === 'alipay'" color="#1890FF" @click="handleAlipayPay">支付宝支付</el-button>
+                    <el-button v-if="item === 'card'" color="#626aef" @click="handleCardPay">检测卡</el-button>
+                  </template>
+                </div>
+                <div v-if="(!isSupportAlipay) && (!isSupportWechat)">
+                  <el-alert :title="payWaring" type="warning" />
+                </div>
+              </div>
+
 
               <div ref="payFormRef" class="pay-form-container" style="display: none;"></div>
-              <div v-if="(!isSupportAlipay) && (!isSupportWechat)">
-                <el-alert :title="payWaring" type="warning" />
-              </div>
+
 
             </div>
           </div>
@@ -1484,7 +1442,7 @@ async function processWechatPayment() {
     margin-left: 0;
   }
 
-  .payment-buttons .el-button + .el-button {
+  .payment-buttons .el-button+.el-button {
     margin-left: 0;
     margin-top: 10px;
   }

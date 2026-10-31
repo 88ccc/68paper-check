@@ -10,6 +10,7 @@ const { webSet, joinUrl } = storeToRefs(useWebsitConfigStore());
 const router = useRouter()
 const route = useRoute();
 const navRef = ref();
+const haskf=ref(false);
 
 
 function changeFavicon(src: string) {
@@ -35,6 +36,10 @@ function showCS() {
   navRef.value.showCS();
 }
 
+const onKFchange = (val:any) => {
+  haskf.value = val
+}
+
 </script>
 
 
@@ -49,7 +54,7 @@ function showCS() {
           <img class="logo-small-1" :src="webSet.miniLogo">
         </div>
 
-        <ResponsiveNav ref="navRef" />
+        <ResponsiveNav ref="navRef" @updateKf="onKFchange"/>
       </div>
     </div>
 
@@ -63,7 +68,7 @@ function showCS() {
           <el-link @click="router.push('/#myproduct')">论文查重</el-link>
           <el-link @click="router.push('/report')">报告下载</el-link>
           <el-link @click="router.push('/faq')">常见问题</el-link>
-          <el-link @click="showCS()">联系客服</el-link>
+          <el-link v-if="haskf" @click="showCS()">联系客服</el-link>
           <el-link v-if="joinUrl" :href="joinUrl" target="_blank">加盟代理</el-link>
         </div>
         <div class="footer-copy">

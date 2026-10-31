@@ -1,0 +1,1652 @@
+<script setup lang="ts">
+import { ref, reactive, onMounted, computed, onUnmounted, nextTick } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import {
+  Warning,
+  Delete,
+  CreditCard,
+  UploadFilled
+} from '@element-plus/icons-vue'
+import type { Ref } from 'vue';
+import { paxios } from '@/utils/paxios'
+import { storeToRefs } from "pinia"
+import QRCode from 'qrcode';
+import { mySleepMs, getBrowserType } from '@/utils/utils'
+import type { UploadFile, UploadFiles, UploadInstance } from 'element-plus'
+import { useProductConfigStore } from '@/stores/productConfig'
+import zhCn from 'element-plus/es/locale/lang/zh-cn'
+
+const onlyCard = ref(false);
+
+const cardLoading = ref(false)
+const { productList, endtimeId } = storeToRefs(useProductConfigStore());
+const payFormRef: Ref<HTMLDivElement | null> = ref(null);
+const product = ref(<any>{});
+const route = useRoute()
+const router = useRouter()
+const loading = ref(false);
+const txtupload = ref(true);
+const needEndTime = ref(false);
+const showCardDialog = ref(false);
+const dialogWidth = ref('600px')
+const pricetips = ref("");
+let orderid = '';
+let find = false;
+//浏览器类型
+const browserType = ref('');
+const qrcodeUrl = ref('')
+const showPayQRCode = ref(false)
+const payQRCodeTitle = ref('')
+const payId = ref('')
+let userPaytype = "";
+const productTipsLevel = ref(0);
+const productTips = ref('');
+const prodectUserNotice = ref('');
+const payTypeOptions = ref(<string[]>[]);
+
+const showAuthor = ref(true);
+const showTitle = ref(true);
+const showAigcPlat = ref(false);
+
+const aliQRre = ref({
+  id: "",
+  qr: ""
+});
+const wxQRre = ref({
+  id: "",
+  qr: ""
+});
+
+const smallp = ref(false)
+
+//定时器
+let timer: any = null;
+let timerPay: any = null;
+const qrLoading = ref(false)
+
+const payWaring = ref('')
+let isSupportWechat = false
+let isSupportAlipay = false
+const paymentMethod = ref('')
+let wechatSet: any = null;
+let AliapySet: any = null;
+
+const cardForm = reactive({
+  cardid1: '',
+  cardid2: ''
+})
+
+const aigcPlat = ref([
+  {
+    name: "通用",
+    value: "0",
+  }, {
+    name: "知W",
+    value: "40"
+  }, {
+    name: "万F",
+    value: "60"
+  }, {
+    name: "维P",
+    value: "50",
+  }, {
+    name: "Turnitin",
+    value: "30"
+  }, {
+    name: "格子达",
+    value: "10"
+  }, {
+    name: "大雅",
+    value: "80"
+  }, {
+    name: "PaperPass",
+    value: "90"
+  }, {
+    name: "朱雀AIGC",
+    value: "20"
+  }
+])
+
+function getAIPlatName(id: string) {
+  return aigcPlat.value.find(item => item.value === id)?.name || '';
+}
+
+function convertNumberToUnit(num: number) {
+  // 转为有效数字
+  const number = Number(num);
+  if (isNaN(number)) return '';
+
+  // 0 特殊处理
+  if (number === 0) return '篇';
+
+  // 1️⃣ 整万倍数（最高优先级）
+  if (number % 10000 === 0) {
+    const val = number / 10000;
+    return val === 1 ? '万字符' : `${val}万字符`;
+  }
+
+  // 2️⃣ 整千倍数
+  if (number % 1000 === 0) {
+    const val = number / 1000;
+    return val === 1 ? '千字符' : `${val}千字符`;
+  }
+
+  // 3️⃣ 整百倍数
+  if (number % 100 === 0) {
+    const val = number / 100;
+    return val === 1 ? '百字符' : `${val}百字符`;
+  }
+
+  // 都不满足，原样返回
+  return String(number) + '字符';
+}
+
+async function switch_system(type: string) {
+  if (type !== product.value.id) {
+    await initPage(type);
+    router.push({ name: 'Rewrite', query: { type } })
+
+  }
+}
+
+
+//解析支付方式
+const parsePaymentMethod = function (payset: any) {
+  payWaring.value = "";
+  isSupportWechat = false;
+  isSupportAlipay = false;
+  payTypeOptions.value = [];
+  if (browserType.value == 'pc') {
+    payWaring.value = "当前环境不支持支付，请用手机浏览器访问网站,或者在微信中打开网站";
+  } else if (browserType.value == 'mobile') {
+    payWaring.value = "当前环境不支持支付，请用电脑浏览器访问网站,或者在微信中打开网站";
+  } else if (browserType.value == 'wechat') {
+    payWaring.value = "当前环境不支持支付，请用电脑浏览器访问网站,或者手机浏览器访问网站";
+  }
+  //判断payset是否是数组
+  if (Array.isArray(payset)) {
+    //遍历数组
+    for (let i = 0; i < payset.length; i++) {
+      let isMatch = false;
+      if ((browserType.value == 'pc') && (payset[i].scene == 'pc')) {
+        isMatch = true;
+      } else if ((browserType.value == 'mobile') && (payset[i].scene == 'h5')) {
+        isMatch = true;
+      } else if ((browserType.value == 'wechat') && (payset[i].scene == 'wxh5')) {
+        isMatch = true;
+      }
+      if (isMatch) {
+        if ((payset[i].type == 'wxpay') && (payset[i].status == 1)) {
+          isSupportWechat = true;
+          wechatSet = payset[i];
+
+        } else if ((payset[i].type == 'alipay') && (payset[i].status == 1)) {
+          isSupportAlipay = true;
+          AliapySet = payset[i];
+        }
+      }
+    }
+  } else {
+    console.log("payset不是数组");
+  }
+  const myPayArray = userPaytype.split(",");
+  for (let i = 0; i < myPayArray.length; i++) {
+    if ((myPayArray[i] == "wechat") && isSupportWechat) {
+      payTypeOptions.value.push("wechat");
+    }
+    if ((myPayArray[i] == "alipay") && isSupportAlipay) {
+      payTypeOptions.value.push("alipay");
+    }
+    if (myPayArray[i] == "card") {
+      payTypeOptions.value.push("card");
+    }
+  }
+
+  if (payTypeOptions.value.length == 1) {
+    if (payTypeOptions.value[0] == "card") {
+      onlyCard.value = true;
+    }
+  }
+
+
+};
+
+const cardRules = reactive({
+  cardid1: [
+    { required: true, message: '请输入卡号', trigger: 'blur' },
+    { min: 3, max: 32, message: '请输入3-32位卡号', trigger: 'blur' },
+  ],
+  cardid2: [
+    { min: 3, max: 32, message: '请输入3-32位卡号', trigger: 'blur' },
+  ]
+})
+
+// 表单数据
+const formData = reactive({
+  title: '',
+  endTime: '',
+  author: '',
+  ai_plat: "",
+  uploadType: 'file',
+  file: null as File | null,
+  text: '',
+  wordCount: 0,
+  piece: 0,
+  unit_price: 0,
+  total_price: 0,
+  fileName: ''
+})
+
+// 步骤
+const currentStep = ref(1)
+const uploadRef = ref<UploadInstance>()
+
+const handleResize = async () => {
+
+  if (window.innerWidth < 768) {
+    smallp.value = true;
+    dialogWidth.value = "92%";
+  } else {
+    smallp.value = false;
+    dialogWidth.value = "600px";
+
+  }
+};
+
+async function initPage(productid: string) {
+  // 重置表单数据
+  formData.title = '';
+  formData.endTime = '';
+  formData.author = '';
+  formData.ai_plat = "";
+  formData.uploadType = 'file';
+  formData.file = null;
+  formData.text = '';
+  formData.wordCount = 0;
+  formData.piece = 0;
+  formData.unit_price = 0;
+  formData.total_price = 0;
+  formData.fileName = '';
+  uploadRef.value?.clearFiles();
+  showAuthor.value = true;
+  showTitle.value = true;
+  find = false;
+  for (let i = 0; i < productList.value.length; i++) {
+    if (productList.value[i].id == productid) {
+      product.value = productList.value[i];
+      find = true;
+      break;
+    }
+  }
+
+  if (find == false) {
+    ElMessage.error("没有找到该检测系统");
+    return;
+  }
+  needEndTime.value = false;
+  for (let i = 0; i < endtimeId.value.length; i++) {
+    if (endtimeId.value[i] == productid) {
+      needEndTime.value = true;
+      break;
+    }
+  }
+
+  if (isFileFormatSupported(product.value.config.file_types, "xxx.txt")) {
+    txtupload.value = true;
+  } else {
+    txtupload.value = false;
+  }
+
+  if (product.value.unit == 0) {
+    pricetips.value = "" + (product.value.price / 100) + "元/篇"
+  } else {
+    pricetips.value = "" + (product.value.price / 100) + "元/" + convertNumberToUnit(product.value.unit) + ",不足" + convertNumberToUnit(product.value.unit) + "按" + convertNumberToUnit(product.value.unit) + "计算";
+  }
+
+  if ((productid == "zjcaigc") || (productid == "zjchong") || (productid == "rewritepro")) {
+    formData.title = product.value.name;
+    formData.author = product.value.name;
+    showAuthor.value = false;
+    showTitle.value = false;
+  }
+  if (productid == "zjcaigc") {
+    showAigcPlat.value = true;
+  } else {
+    showAigcPlat.value = false;
+  }
+
+
+  try {
+    loading.value = true;
+
+    let notice = await paxios.get("/check/get_product_notice?productid=" + productid);
+    if (notice.data.code == 0) {
+      if (notice.data.data.tips) {
+        productTipsLevel.value = notice.data.data.tips.level;
+        productTips.value = notice.data.data.tips.content;
+      }
+      if (notice.data.data.notice) {
+        prodectUserNotice.value = notice.data.data.notice.conent;
+      }
+    }
+
+  } catch (err) {
+    ElMessage.error("获取产品信息出错");
+  } finally {
+    loading.value = false;
+  }
+
+}
+
+
+
+
+// 初始化
+onMounted(async () => {
+  handleResize();
+  window.addEventListener('resize', handleResize);
+  const productid = route.query.type as string
+  browserType.value = getBrowserType();
+  try {
+    loading.value = true;
+    let payres = await paxios.post("/check/get_pay_type");
+    if (payres.data.code == 0) {
+      userPaytype = payres.data.data;
+    }
+
+    let res = await paxios.get("/index/getPaySet");
+    if (res.data.code == 0) {
+      parsePaymentMethod(res.data.data);
+    } else {
+      ElMessage.error(res.data.msg);
+    }
+  } catch (err) {
+    console.log(err);
+  } finally {
+    loading.value = false;
+  }
+
+
+  await initPage(productid);
+
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize);
+  if (timer) {
+    clearInterval(timer);
+    timer = null;
+  }
+  if (timerPay) {
+    clearTimeout(timerPay);
+    timerPay = null;
+  }
+})
+
+function handleExceed() {
+  ElMessageBox.alert('只能上传一个文件，你可以删除原有文件后再重新上传新文件，或者刷新网页后重试', '错误', {
+    confirmButtonText: '确定'
+  });
+}
+
+
+function isFileFormatSupported(supportFormats: string, fileName: string) {
+  // 边界处理：如果支持格式为空或文件名为空，直接返回false
+  if (!supportFormats || !fileName) {
+    return false;
+  }
+
+  // 1. 处理支持的格式列表：转小写、去空格、转成Set（方便快速查找）
+  const formatSet = new Set(
+    supportFormats.split(',').map(format => format.trim().toLowerCase())
+  );
+
+  // 2. 提取文件名的后缀：找到最后一个"."的位置
+  const lastDotIndex = fileName.lastIndexOf('.');
+  // 没有后缀（无点）或点在最后（如"文件名."），返回false
+  if (lastDotIndex === -1 || lastDotIndex === fileName.length - 1) {
+    return false;
+  }
+
+  // 3. 提取后缀并转小写，判断是否在支持列表中
+  const fileExt = fileName.slice(lastDotIndex + 1).toLowerCase();
+  return formatSet.has(fileExt);
+}
+
+async function toUploadFile(file: File) {
+
+  try {
+    loading.value = true;
+    let res = await paxios.post("/check/get_upload_param", { product_id: product.value.id })
+    if (res.data.code != 0) {
+      ElMessage.error(res.data.msg);
+      loading.value = false;
+      return;
+    }
+    const formDataObj = new FormData()
+    const dataobj = res.data.data as Record<string, string | number>;
+    for (const [key, value] of Object.entries(dataobj)) {
+      if (key != "url") {
+        formDataObj.append(key, String(value));
+      }
+    }
+    let upUrl = res.data.data.url;
+    if (file) {
+      formDataObj.append('file', file)
+    }
+    const res1 = await paxios.post(upUrl, formDataObj, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    if (res1.data.code == 0) {
+      orderid = res1.data.data.id;
+    } else {
+      ElMessage.error(res1.data.msg);
+      loading.value = false;
+      return;
+    }
+    const res2 = await paxios.post("/check/create_check_order", { orderid: orderid, product_id: product.value.id });
+    if (res2.data.code != 0) {
+      ElMessage.error(res2.data.msg);
+      loading.value = false;
+      return;
+    }
+
+  } catch (err) {
+    ElMessage.error("上传文件出错");
+  } finally {
+    loading.value = false;
+  }
+
+}
+
+
+async function fileChange(file: UploadFile, uploadFiles: UploadFiles) {
+  const rawFile = file.raw
+  if (!rawFile) return
+
+  // 检查文件类型
+  if (!isFileFormatSupported(product.value.config.file_types, rawFile.name)) {
+    ElMessage.error('仅支持 ' + product.value.config.file_types + '格式的文件')
+    formData.file = null
+    uploadRef.value?.clearFiles();
+    return
+  }
+
+  const maxSize = product.value.config.file_max * 1024 * 1024
+  if (rawFile.size > maxSize) {
+    ElMessage.error('文件大小不能超过 ' + product.value.config.file_max + 'MB')
+    formData.file = null
+    uploadRef.value?.clearFiles();
+    return
+  }
+  formData.file = rawFile
+  formData.fileName = rawFile.name
+  await toUploadFile(rawFile);
+  if (orderid.length < 3) {
+    ElMessage.error('上传文件出错')
+    uploadRef.value?.clearFiles();
+    formData.file = null
+    formData.fileName = ''
+    formData.wordCount = 0
+    formData.piece = 0
+    formData.unit_price = 0
+    formData.total_price = 0
+    orderid = '';
+    return;
+  }
+
+}
+
+function deleteFile() {
+  uploadRef.value?.clearFiles();
+  formData.file = null
+  formData.fileName = ''
+  formData.wordCount = 0
+  formData.piece = 0
+  formData.unit_price = 0
+  formData.total_price = 0
+  orderid = '';
+}
+
+function createTxtFile(content: string, fileName = "upload.txt") {
+  const txtFile = new File([content], fileName, {
+    type: "text/plain;charset=utf-8"
+  });
+
+  return txtFile;
+}
+
+async function report_info() {
+  if (!find) {
+    ElMessage.error("该产品不可用");
+    return;
+  }
+  if (!formData.title) {
+    ElMessage.warning('请输入标题')
+    return
+  }
+  if (formData.title.length > product.value.config.title_max) {
+    ElMessage.error("标题长度超过限制" + product.value.config.title_max)
+    return
+  }
+  if (!formData.author) {
+    ElMessage.warning('请输入作者')
+    return
+  }
+  if (formData.author.length > product.value.config.author_max) {
+    ElMessage.error("作者长度超过限制" + product.value.config.author_max)
+    return
+  }
+  if (needEndTime.value) {
+    //endTime
+    if (!formData.endTime) {
+      ElMessage.warning('请选择发表时间')
+      return
+    }
+  }
+  if (showAigcPlat.value) {
+    if (!formData.ai_plat) {
+      ElMessage.warning('请选择AIGC检测平台')
+      return
+    }
+  }
+  loading.value = true;
+  try {
+    const res = await paxios.post("/check/report_info", {
+      order_id: orderid,
+      title: formData.title,
+      author: formData.author,
+      end_date: formData.endTime,
+      ai_plat: formData.ai_plat
+    });
+
+    if (res.data.code != 0) {
+      ElMessage.error(res.data.msg);
+      loading.value = false;
+      return false;
+    }
+
+  } catch (err) {
+
+    ElMessage.error("上报信息出错");
+    loading.value = false;
+    return false;
+
+  }
+  loading.value = false;
+  return true;
+}
+
+const analyzeFile = async () => {
+  if (!find) {
+    ElMessage.error("该产品不可用");
+    return false;
+  }
+  if (formData.uploadType === 'file') {
+    if (orderid.length < 5) {
+      ElMessage.warning('请先上传文件')
+      return false
+    }
+  } else if (formData.uploadType === 'text') {
+    const text = formData.text.trim();
+    if (text.length < product.value.config.min_words) {
+      ElMessage.warning('文本内容不能少于' + product.value.config.min_words + '字')
+      return false
+    }
+    if (text.length > product.value.config.max_words) {
+      ElMessage.warning('文本内容不能超过' + product.value.config.max_words + '字')
+      return false
+    }
+    let file = createTxtFile(text);
+    await toUploadFile(file);
+    if (orderid.length < 3) {
+      ElMessage.error('上传文件出错')
+      return false;
+    }
+  }
+  //查状态
+  loading.value = true;
+  let try_count = 1;
+  while (true) {
+    try {
+      const res = await paxios.post("/check/get_order_status", { orderid: orderid });
+      if (res.data.code == 0) {
+        if (res.data.data.status == 2) {
+          //解析完成
+          formData.wordCount = res.data.data.words;
+          formData.piece = res.data.data.piece; //件数
+          formData.unit_price = res.data.data.unit_price;//单价
+          formData.total_price = res.data.data.total_price;//总价
+          break;
+        } else if (res.data.data.status == 3) {
+          let err_msg = "解析失败";
+          if (res.data.data.remark) {
+            err_msg = err_msg + ":" + res.data.data.remark;
+          }
+          ElMessageBox.alert(err_msg, '提示', {
+            confirmButtonText: '确定',
+            type: 'error'
+          });
+          break;
+        }
+      }
+    } catch (err) {
+      console.error('获取订单状态失败:', err);
+    }
+
+    await mySleepMs(3000);
+    try_count = try_count + 1;
+
+    if (try_count > 10) {
+      ElMessage.error("解析超时");
+      break;
+    }
+  }
+  loading.value = false;
+  if (try_count > 10) {
+    return false;
+  }
+  if (formData.piece == 0) {
+    return false;
+  }
+  return true;
+}
+
+const nextStep = async () => {
+  if (currentStep.value === 1) {
+    if (!find) {
+      ElMessage.error("该产品不可用");
+      return;
+    }
+    formData.title = formData.title.trim();
+    formData.author = formData.author.trim();
+    if (!formData.title) {
+      ElMessage.warning('请输入标题')
+      return
+    }
+    if (formData.title.length > product.value.config.title_max) {
+      ElMessage.error("标题长度超过限制" + product.value.config.title_max)
+      return
+    }
+    if (!formData.author) {
+      ElMessage.warning('请输入作者')
+      return
+    }
+    if (formData.author.length > product.value.config.author_max) {
+      ElMessage.error("作者长度超过限制" + product.value.config.author_max)
+      return
+    }
+    if (needEndTime.value) {
+      //endTime
+      if (!formData.endTime) {
+        ElMessage.warning('请选择发表时间')
+        return
+      }
+    }
+    if (formData.uploadType === 'file' && !formData.file) {
+      ElMessage.warning('请上传文件')
+      return
+    }
+    if (formData.uploadType === 'text' && !formData.text.trim()) {
+      ElMessage.warning('请输入文本内容')
+      return
+    }
+    const success = await analyzeFile()
+    if (success) {
+      const ret = await report_info();
+      if (ret) {
+        cardForm.cardid1 = "";
+        cardForm.cardid2 = "";
+        currentStep.value = 2
+      }
+
+    }
+  }
+}
+
+const prevStep = () => {
+  if (currentStep.value > 1) {
+    currentStep.value--
+  }
+}
+
+const resetUpload = () => {
+  router.push("/#myproduct")
+}
+
+async function submitCard() {
+  cardLoading.value = false;
+  let tmpcard1 = cardForm.cardid1.trim();
+  let tmpcard2 = cardForm.cardid2.trim();
+  if (orderid.length < 3) {
+    ElMessage.error("请先上传文件")
+    return;
+  }
+  if (tmpcard1.length < 3) {
+    ElMessage.error("请输入卡号")
+    return;
+  }
+  let cards = tmpcard1;
+  if (tmpcard2.length > 3) {
+    cards = tmpcard1 + "," + tmpcard2;
+  }
+  try {
+    cardLoading.value = true;
+    let res = await paxios.post("/check/pay_by_card", { cards: cards, orderid: orderid });
+    if (res.data.code == 0) {
+      payId.value = tmpcard1;
+      submitOrder();
+    } else {
+      ElMessageBox.alert(res.data.msg, '错误', {
+        confirmButtonText: '确定'
+      });
+    }
+  } catch (err) {
+    console.error(err);
+    ElMessage.error("发生异常，请稍后重试，或者联系客服");
+  } finally {
+    cardLoading.value = false;
+  }
+
+
+}
+
+const submitOrder = () => {
+  // 跳转到报告下载页面
+  setTimeout(() => {
+    router.push({
+      name: 'Report',
+      query: { orderNo: payId.value }
+    })
+  }, 500)
+}
+
+
+function handleWeChatPay() {
+  paymentMethod.value = 'wechat';
+  payQRCodeTitle.value = '微信扫码支付'
+  confirmPayment();
+}
+function handleAlipayPay() {
+  paymentMethod.value = 'alipay';
+  payQRCodeTitle.value = '支付宝扫码支付'
+  confirmPayment();
+}
+function handleCardPay() {
+  paymentMethod.value = "card";
+  confirmCardPay();
+}
+
+function closeQRCodeDialog() {
+  if (timer) {
+    clearInterval(timer);
+    timer = null;
+  }
+}
+
+function closeCardDialog() {
+
+}
+
+const confirmCardPay = () => {
+  if (paymentMethod.value != "card") {
+    return;
+  }
+  closeQRCodeDialog();
+  showCardDialog.value = true;
+
+}
+
+
+const confirmPayment = () => {
+
+  qrcodeUrl.value = "";
+  if (paymentMethod.value == "card") {
+    return;
+  }
+
+  // 根据浏览器类型决定支付方式
+  if (browserType.value === 'pc') {
+    // PC端显示二维码
+    showPayQRcode();
+  } else if (browserType.value === 'mobile') {
+    // 移动端调用H5支付
+    processH5Payment();
+  } else if (browserType.value === 'wechat') {
+    // 微信内只支持微信支付
+    processWechatPayment();
+  }
+};
+
+async function showPayQRcode() {
+  showPayQRCode.value = true;
+  qrcodeUrl.value = "/images/loading.gif";
+  let modeid = wechatSet?.modeid;
+  if (paymentMethod.value == 'alipay') {
+    modeid = AliapySet?.modeid;
+  }
+  if (!modeid) {
+    ElMessage.error('支付方式未配置');
+    return;
+  }
+  if (timer) {
+    clearInterval(timer);
+    timer = null;
+  }
+  if (timerPay) {
+    clearTimeout(timerPay);
+    timerPay = null;
+  }
+  let qrcode = "";
+  if (paymentMethod.value == 'alipay') {
+    qrcode = aliQRre.value.qr;
+    payId.value = aliQRre.value.id;
+  } else if (paymentMethod.value == "wechat") {
+    qrcode = wxQRre.value.qr;
+    payId.value = wxQRre.value.id;
+  }
+  if (qrcode.length < 3) {
+    try {
+      let res = await paxios.post("/index/getPayQRcode", { type: paymentMethod.value, amount: formData.total_price / 100, modeid: modeid, orderid: orderid });
+      if (res.data.code == 0) {
+        if (paymentMethod.value == 'alipay') {
+          aliQRre.value.qr = res.data.data.qr;
+          aliQRre.value.id = res.data.data.payid;
+        } else if (paymentMethod.value == "wechat") {
+          wxQRre.value.qr = res.data.data.qr;
+          wxQRre.value.id = res.data.data.payid;
+        }
+        qrcode = res.data.data.qr;
+        payId.value = res.data.data.payid;
+
+      } else {
+        ElMessage.error(res.data.msg);
+      }
+
+    } catch (error) {
+
+      ElMessage.error('获取支付二维码失败');
+
+      console.error('获取支付二维码错误:', error);
+
+    }
+  }
+  if (qrcode.length > 3) {
+    // 调用 qrcode.toDataURL 生成二维码的 base64 格式图片
+    // 配置参数：宽度 200，容错级别 high
+    const base64Url = await QRCode.toDataURL(qrcode, {
+      width: 200,
+      errorCorrectionLevel: 'high'
+    });
+    qrcodeUrl.value = base64Url; // 赋值给图片地址
+    qrLoading.value = false;
+
+    timerPay = setTimeout(() => { showPayQRCode.value = false }, 30000);
+    timer = setInterval(async () => {
+      try {
+        let ret = await paxios.post("/index/payquery", { payid: payId.value });
+        if (ret.data.code == 0) {
+          if (ret.data.data.status == 1) {
+            //支付成功
+            showPayQRCode.value = false;
+            submitOrder();
+          }
+        }
+      } catch (error) {
+        console.error('查询订单状态错误：', error);
+      }
+    }, 5000);
+  }
+
+}
+
+async function processH5Payment() {
+  let modeid = wechatSet?.modeid;
+  if (paymentMethod.value == 'alipay') {
+    modeid = AliapySet?.modeid;
+  }
+  if (!modeid) {
+    ElMessage.error('支付方式未配置');
+    return;
+  }
+  const currentDomain = window.location.origin;
+  // 拼接 /report 路径
+  const reportUrl = currentDomain + "/report?orderNo=";
+  try {
+    let res = await paxios.post("/index/getH5Pay", { type: paymentMethod.value, orderid: orderid, amount: formData.total_price / 100, modeid: modeid, returnUrl: reportUrl });
+    if (res.data.code == 0) {
+      payId.value = res.data.data.payid;
+      if (paymentMethod.value == 'alipay') {
+        if (payFormRef.value) {
+          payFormRef.value.innerHTML = res.data.data.pay_form;
+          const payForm = payFormRef.value.querySelector('form');
+          if (payForm) {
+            if (timer) {
+              clearInterval(timer);
+            }
+            // 支付成功，轮询查询订单状态确认支付结果
+            timer = setInterval(async () => {
+              try {
+                let ret = await paxios.post("/index/payquery", { payid: payId.value });
+                if (ret.data.code == 0) {
+                  if (ret.data.data.status == 1) {
+                    //支付成功
+                    submitOrder();
+                  }
+                }
+              } catch (error) {
+                console.error('查询订单状态错误：', error);
+              }
+            }, 5000);
+            payForm.submit();
+          } else {
+            ElMessage.error('支付表单解析失败');
+          }
+        }
+      } else if (paymentMethod.value == 'wechat') {
+        window.open(res.data.data.pay_url, '_blank');
+      }
+
+    } else {
+      ElMessage.error(res.data.msg);
+    }
+
+  } catch (error) {
+    console.error('H5支付处理错误:', error);
+    ElMessage.error('支付处理失败');
+  }
+}
+
+async function processWechatPayment() {
+
+  let cur_host = window.location.host;
+  let pay_url = "";
+  let pres = await paxios.get("/index/getJsapDomain");
+  if (pres.data.code == 0) {
+    if (pres.data.data.url) {
+      pay_url = pres.data.data.url;
+    }
+  }
+  if (pay_url.length < 3) {
+    ElMessage.error('获取支付域名失败');
+    return;
+  }
+  pay_url = pay_url + "/pay/check?orderid=" + orderid + "&rurl=" + cur_host;
+  window.location.href = pay_url;
+
+}
+
+
+
+</script>
+
+<template>
+  <el-config-provider :locale="zhCn">
+    <div class="check-page">
+
+
+      <!-- 主内容 -->
+      <div v-loading="loading" element-loading-text="正在处理……" class="main-container">
+
+
+        <!-- 步骤内容 -->
+        <div class="step-content">
+
+          <div v-show="currentStep === 1" class="step-2">
+            <!-- 已选产品展示 -->
+            <div class="selected-product-bar">
+              <div class="product-info">
+                <div v-if="!smallp">
+
+                  <span class="wanfang-logo">
+                    <img style="width: 100%;" :src="product.c_img">
+                  </span>
+
+                </div>
+
+                <div class="product-details">
+                  <div class="product-name-mini">
+                    <span class="version-badge">{{ product.name }}</span>
+                    <span class="version-badge">{{ (product.price / 100) }}元/{{ convertNumberToUnit(product.unit)
+                    }}</span>
+                  </div>
+                  <div class="product-description">
+                    {{ product.description }}
+                  </div>
+                </div>
+              </div>
+              <el-button link type="primary" @click="resetUpload">
+                重新选择
+              </el-button>
+            </div>
+            <div style="margin-bottom: 15px;" v-show="prodectUserNotice != ''">
+              <el-alert :title="prodectUserNotice" type="primary" :closable="false">
+              </el-alert>
+
+            </div>
+
+            <div class="form-container">
+              <el-form label-position="top" size="large">
+                <el-form-item v-show="showTitle" label="标题">
+                  <el-input v-model="formData.title" placeholder="请输入论文标题" :maxlength="product.config?.title_max"
+                    show-word-limit />
+                </el-form-item>
+
+                <el-form-item v-show="showAuthor" label="作者">
+                  <el-input v-model="formData.author" placeholder="请输入作者姓名" :maxlength="product.config?.author_max"
+                    show-word-limit />
+                </el-form-item>
+                <el-form-item v-show="needEndTime" label="发表日期">
+                  <el-date-picker v-model="formData.endTime" type="date" format="YYYY-MM-DD"
+                    value-format="YYYY-MM-DD" />
+                </el-form-item>
+
+                <el-form-item v-if="showAigcPlat" label="平台类型" prop="class_type">
+                  <el-select v-model="formData.ai_plat" placeholder="请选择类型" clearable>
+                    <el-option v-for="item in aigcPlat" :key="item.value" :label="item.name" :value="item.value" />
+                  </el-select>
+                </el-form-item>
+
+                <el-form-item label="上传方式">
+                  <el-radio-group v-model="formData.uploadType">
+                    <el-radio value="file">上传文件</el-radio>
+                    <el-radio v-show="txtupload" value="text">粘贴文本</el-radio>
+                  </el-radio-group>
+                </el-form-item>
+
+                <el-form-item style="margin-bottom: 0px;" v-if="formData.uploadType === 'file'" label="上传文件">
+                  <el-upload :multiple="false" style="width: 100%;" ref="uploadRef" :show-file-list="false" :limit="1"
+                    drag action="#" :auto-upload="false" :on-exceed="handleExceed" :on-change="fileChange">
+                    <el-row style="height: 100%;">
+                      <el-col :xs="24" :sm="12" :md="12" :lg="12" :xl="12">
+                        <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+                        <div class="el-upload__text">
+                          <span v-show="formData.fileName == ''">将文件拖到此处，或<em>点击上传</em></span>
+                          <span v-show="formData.fileName != ''">{{ formData.fileName }}&ensp;&ensp;<el-button
+                              type="danger" :icon="Delete" size="small" @click.stop="deleteFile()" circle /></span>
+
+                        </div>
+                      </el-col>
+                      <el-col class="hidden-xs-only file_tips_col" style="height: 100%;border-left: 1px dotted #AAAAAA;"
+                        :sm="12" :md="12" :lg="12" :xl="12">
+                        <div style="text-align: start;">
+                          <ul>
+                            <section>
+                              <li>支持的格式：{{ product.config?.file_types }}</li>
+                              <li v-show="product.config?.file_types.search('pdf') != -1"><span
+                                  style="color: red">pdf格式不稳定，容易乱码，请确认后再提交</span>
+                              </li>
+                              <li>文档中不得包含批注</li>
+                            </section>
+                            <li>文档大小不超过{{ product.config?.file_max }}MB</li>
+                          </ul>
+                        </div>
+                      </el-col>
+                    </el-row>
+                  </el-upload>
+                </el-form-item>
+
+                <el-form-item style="margin-bottom: 0px;" v-if="formData.uploadType === 'text'" label="文本内容">
+                  <el-input v-model="formData.text" type="textarea" :rows="15" placeholder="请粘贴您的论文内容..."
+                    :minlength="product.config?.min_words" :maxlength="product.config?.max_words" show-word-limit />
+                </el-form-item>
+                <div class="price_tips_dev">
+                  <p class="price_tips">{{ pricetips }}</p>
+                </div>
+                <div v-show="product.tips != ''">
+                  <el-alert title="注意事项" type="warning" :closable="false">
+                    <span v-html="product.tips"></span>
+                  </el-alert>
+                </div>
+                <div v-show="productTips != ''">
+                  <el-alert v-if="productTipsLevel == 1" :title="productTips" type="info" :closable="false">
+                  </el-alert>
+                  <el-alert v-if="productTipsLevel == 2" :title="productTips" type="warning" :closable="false">
+                  </el-alert>
+                  <el-alert v-if="productTipsLevel == 3" :title="productTips" type="error" :closable="false">
+                  </el-alert>
+                </div>
+              </el-form>
+            </div>
+          </div>
+
+          <!-- 步骤3 -->
+          <div v-show="currentStep === 2" class="step-3">
+
+
+            <div class="confirm-container">
+              <el-alert title="请仔细核对以下信息" type="info" :closable="false" show-icon class="confirm-alert">
+                <template #icon>
+                  <Warning />
+                </template>
+              </el-alert>
+              <el-descriptions :column="2" border class="info-descriptions">
+                <el-descriptions-item :span="2" label="检测系统"><span style="color: var(--el-color-primary);">{{
+                  product.name
+                    }}</span></el-descriptions-item>
+                <el-descriptions-item v-show="showTitle" label="论文标题">{{ formData.title }}</el-descriptions-item>
+                <el-descriptions-item v-show="showAuthor" label="作者">{{ formData.author }}</el-descriptions-item>
+                <el-descriptions-item v-show="showAigcPlat" label="AI检测平台">{{
+                  getAIPlatName(formData.ai_plat) }}</el-descriptions-item>
+                <el-descriptions-item v-if="formData.endTime != ''" label="发表日期">{{ formData.endTime
+                }}</el-descriptions-item>
+                <el-descriptions-item v-if="formData.fileName" label="文件名">{{ formData.fileName
+                }}</el-descriptions-item>
+                <el-descriptions-item v-if="formData.wordCount" label="字数">{{ formData.wordCount.toLocaleString() }}
+                  字</el-descriptions-item>
+                <el-descriptions-item label="件数">
+                  {{ formData.piece }}件
+                </el-descriptions-item>
+                <el-descriptions-item label="单价">
+                  {{ formData.unit_price / 100 }}元
+                </el-descriptions-item>
+                <el-descriptions-item label="总价">
+                  <span class="price-text">{{ formData.total_price / 100 }}元</span>
+                </el-descriptions-item>
+              </el-descriptions>
+              <div v-if="onlyCard">
+                <el-card style="margin-top: 15px;">
+
+                  <el-form style="max-width: 600px" :model="cardForm" :rules="cardRules" label-width="auto">
+                    <div style="font-size: 20px;color: blue;margin: 10px 5px;">
+                      <el-icon>
+                        <CreditCard />
+                      </el-icon> 检测卡
+                    </div>
+                    <el-form-item>
+                      <p style="font-size:12px;color:green;margin-top: 0px;margin-bottom: 0px;">
+                        温馨提醒：你需要购买 <span style="font-size: 18px;color:red">{{ formData.piece }}</span> 件 <span
+                          style="color: var(--el-color-primary);">{{
+                            product.name }}</span>
+                      </p>
+                    </el-form-item>
+                    <el-form-item label="卡号" prop="cardid1">
+                      <el-input v-model="cardForm.cardid1" />
+                    </el-form-item>
+                    <el-form-item label="备用卡号" prop="cardid2">
+                      <el-input v-model="cardForm.cardid2" />
+                    </el-form-item>
+                    <el-form-item>
+                      <p style="font-size:12px;color:red;margin-top: 0px;">
+                        备用卡号可以不填，如果填写，会将卡号的额度合并使用</p>
+                    </el-form-item>
+                    <el-form-item>
+                      <el-button type="primary" @click="submitCard">提交</el-button>
+                      <el-button @click="showCardDialog = false">取消</el-button>
+                    </el-form-item>
+
+                  </el-form>
+                </el-card>
+
+              </div>
+              <div v-else>
+
+                <el-alert title="请选择支付方式" type="success" :closable="false" show-icon class="payment-alert">
+                  <template #icon>
+                    <CreditCard />
+                  </template>
+                </el-alert>
+                <div class="payment-buttons">
+                  <template v-for="item in payTypeOptions" :key="item">
+                    <el-button v-if="item === 'wechat'" color="#07C160" @click="handleWeChatPay">微信支付</el-button>
+                    <el-button v-if="item === 'alipay'" color="#1890FF" @click="handleAlipayPay">支付宝支付</el-button>
+                    <el-button v-if="item === 'card'" color="#626aef" @click="handleCardPay">检测卡</el-button>
+                  </template>
+                </div>
+
+                <div ref="payFormRef" class="pay-form-container" style="display: none;"></div>
+                <div v-if="(!isSupportAlipay) && (!isSupportWechat)">
+                  <el-alert :title="payWaring" type="warning" />
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- 操作按钮 -->
+        <div class="action-buttons">
+          <el-button v-if="currentStep > 1" @click="prevStep">
+            上一步
+          </el-button>
+          <el-button v-if="currentStep < 2" type="primary" @click="nextStep">
+            下一步
+          </el-button>
+          <el-button v-if="currentStep === 2" @click="resetUpload">
+            重新上传
+          </el-button>
+        </div>
+
+      </div>
+
+    </div>
+    <el-dialog @close="closeQRCodeDialog" v-model="showPayQRCode" :title="payQRCodeTitle" width="360px" center>
+      <div class="qr-dialog-content">
+        <div class="qr-image-container">
+          <img :src="qrcodeUrl" alt="支付二维码" class="qr-code-image" />
+        </div>
+        <div>订单号：{{ payId }}</div>
+        <div class="qrcode-amount">支付金额: ¥{{ (formData.total_price / 100).toFixed(2) }}元</div>
+        <div><el-button @click="submitOrder" type="success">已经完成支付</el-button></div>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showPayQRCode = false">关闭</el-button>
+        </span>
+      </template>
+    </el-dialog>
+    <el-dialog @close="closeCardDialog" v-model="showCardDialog" title="检测卡支付" :width="dialogWidth" center>
+      <div v-loading="cardLoading">
+        <div>
+          <el-form label-width="auto" :model="cardForm" :rules="cardRules">
+            <el-form-item>
+              <p style="font-size:12px;color:green;margin-top: 0px;margin-bottom: 0px;">
+                温馨提醒：你需要购买 <span style="font-size: 18px;color:red">{{ formData.piece }}</span> 件 <span
+                  style="color: var(--el-color-primary);">{{
+                    product.name }}</span>
+              </p>
+            </el-form-item>
+            <el-form-item label="卡号" prop="cardid1">
+              <el-input v-model="cardForm.cardid1" />
+            </el-form-item>
+            <el-form-item label="备用卡号" prop="cardid2">
+              <el-input v-model="cardForm.cardid2" />
+            </el-form-item>
+            <el-form-item>
+              <p style="font-size:12px;color:red;margin-top: 0px;">
+                备用卡号可以不填，如果填写，会将卡号的额度合并使用</p>
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" @click="submitCard">提交</el-button>
+              <el-button @click="showCardDialog = false">取消</el-button>
+            </el-form-item>
+
+          </el-form>
+
+        </div>
+      </div>
+
+    </el-dialog>
+
+  </el-config-provider>
+</template>
+
+<style scoped>
+.price_tips_dev {
+  display: none;
+  text-align: end;
+  margin-top: 0px;
+}
+
+.price_tips {
+  font-size: 12px;
+  margin-top: 0px;
+  color: blue;
+}
+
+.systembox {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.system {
+  display: inline-block;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  background-image: url("/images/system-bg.png");
+  width: 180px;
+  height: 98px;
+  text-align: center;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.system.active {
+  background-image: url("/images/system-bg-active.png");
+}
+
+.system.active .v-info {
+  background: #0c368a;
+  color: #fff;
+}
+
+
+
+
+.ac-logo {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  width: 60px;
+  height: 22px;
+  background: url('/images/icon-check-rt.png') no-repeat center;
+  font-style: normal;
+  color: #fff;
+}
+
+.v-name {
+  height: 65%;
+  padding: 10px 0;
+  box-sizing: border-box;
+}
+
+
+.v-name .title {
+  color: #0c368a;
+  font-size: 16px;
+  font-weight: bold;
+  margin: 0px 0px 5px 0px;
+}
+
+.v-name .price {
+  font-size: 14px;
+  color: #666;
+  margin: 0px 0px 14px 0px;
+}
+
+
+.v-info {
+  height: 32%;
+  margin: 1px;
+  box-sizing: border-box;
+  font-size: 12px;
+  color: #063b7a;
+  background: #deedff;
+  line-height: 30px;
+}
+
+
+
+.price-text {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--el-color-danger);
+}
+
+.info-descriptions {
+  margin: 20px 0;
+  border-radius: 8px;
+}
+
+.info-descriptions :deep(.el-descriptions__label) {
+  font-weight: 500;
+  background-color: #f5f7fa;
+  width: 120px;
+}
+
+.info-descriptions :deep(.el-descriptions__content) {
+  color: #303133;
+}
+
+.qrcode-amount {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.file_tips_col {
+  border-left: 1px dotted #B0B0B0;
+  height: 100%;
+}
+
+.check-page {
+  min-height: calc(100vh - 188px);
+  display: flex;
+  flex-direction: column;
+}
+
+
+
+.main-container {
+  flex: 1;
+  max-width: 1200px;
+  margin: 40px auto;
+  padding: 0 20px;
+  width: 100%;
+}
+
+.step-content {
+  background: #fff;
+  padding: 40px;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  min-height: 400px;
+}
+
+.form-container {
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+/* 已选产品条 */
+.selected-product-bar {
+  background: linear-gradient(135deg, var(--el-color-primary) 0%, var(--el-color-primary-dark-2) 100%);
+  padding: 20px 30px;
+  border-radius: 12px;
+  margin-bottom: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.product-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.product-icon-mini {
+  font-size: 48px;
+  width: 60px;
+  height: 60px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wanfang-logo {
+  width: 50px;
+  height: 75px;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.product-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.product-name-mini {
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.version-badge {
+  background: rgba(255, 255, 255, 0.959);
+  padding: 4px 12px;
+  color: var(--el-color-primary);
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: normal;
+}
+
+.product-description {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.selected-product-bar .el-button {
+  color: #fff;
+  font-size: 15px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 20px;
+  padding: 8px 20px;
+  backdrop-filter: blur(4px);
+  transition: all 0.3s ease;
+}
+
+.selected-product-bar .el-button:hover {
+  color: #ffd700;
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 215, 0, 0.5);
+  transform: scale(1.05);
+}
+
+.confirm-alert {
+  margin-bottom: 20px;
+}
+
+.payment-alert {
+  margin-top: 20px;
+  margin-bottom: 20px;
+}
+
+.payment-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: center;
+}
+
+.payment-buttons .el-button {
+  min-width: 140px;
+  height: 44px;
+  font-size: 16px;
+  font-weight: 500;
+  border: none;
+  border-radius: 8px;
+}
+
+.qr-tip {
+  margin-bottom: 20px;
+  color: #666;
+}
+
+.action-buttons {
+  margin-top: 30px;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+/* 二维码弹窗 */
+.qr-dialog-content {
+  text-align: center;
+  padding: 20px 0;
+}
+
+.qr-image-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.qr-code-image {
+  width: 250px;
+  height: 250px;
+  border-radius: 12px;
+  border: 2px solid #e4e7ed;
+}
+
+.qr-tip {
+  font-size: 16px;
+  color: #333;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.qr-tip-sub {
+  font-size: 14px;
+  color: #999;
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+
+  .selected-product-bar {
+    padding: 10px 10px;
+  }
+
+  .price-text {
+    font-size: 20px;
+  }
+
+  .info-descriptions {
+    margin: 15px 0;
+  }
+
+  .step-content {
+    padding: 20px;
+  }
+
+  .product-info {
+    gap: 12px;
+  }
+
+  .product-icon-mini {
+    font-size: 40px;
+    width: 50px;
+    height: 50px;
+  }
+
+  .product-name-mini {
+    font-size: 16px;
+  }
+
+  .product-price-mini {
+    font-size: 13px;
+  }
+
+    .payment-buttons {
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .payment-buttons .el-button {
+    width: 100%;
+    min-width: unset;
+    max-width: 360px;
+    height: 44px;
+    font-size: 15px;
+    margin-left: 0;
+  }
+
+  .payment-buttons .el-button+.el-button {
+    margin-left: 0;
+    margin-top: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .info-descriptions :deep(.el-descriptions__label) {
+    width: 90px;
+    font-size: 13px;
+  }
+
+  .main-container {
+    padding: 0 12px;
+    margin: 20px auto;
+  }
+
+  .step-content {
+    padding: 16px;
+  }
+
+}
+</style>

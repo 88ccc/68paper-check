@@ -16,6 +16,8 @@ import { useProductConfigStore } from '@/stores/productConfig'
 const { productList, endtimeId } = storeToRefs(useProductConfigStore());
 
 // ElMessage已通过unplugin-auto-import自动导入，无需手动导入
+const hasWxpay = ref(true);
+const hasAlipay = ref(true);
 
 const router = useRouter()
 
@@ -29,6 +31,12 @@ enum OrderStatus {
   FAILED = 'failed',             // 失败
   REFUND = 'refund',   //已经退款
 }
+
+const takeTime = ref({
+  level: 0,//等级:1正常,2延迟,3严重延迟
+  time: 0,//上一单费时
+  tips: "",
+})
 
 interface OrderInfo {
   orderNo: string
@@ -141,9 +149,14 @@ const queryOrder = async () => {
       reportUrl: res.data.data.report_url,
       failReason: res.data.data.remark
     }
-
     // 如果正在处理，启动自动刷新
     if (orderInfo.value.status === OrderStatus.PROCESSING) {
+      let rut = await paxios.get('/index/get_take_time?id=' + res.data.data.product_id);
+      if (rut.data.code == 0) {
+        takeTime.value.level = rut.data.data.level;
+        takeTime.value.time = rut.data.data.time;
+        takeTime.value.tips = rut.data.data.tips;
+      }
       startAutoRefresh()
     }
 
@@ -182,7 +195,6 @@ const handleRefresh = () => {
 // 下载报告
 const downloadReport = () => {
   if (orderInfo.value?.reportUrl) {
-    // 模拟下载
     ElMessage.success('开始下载报告...')
     window.open(orderInfo.value.reportUrl, '_blank')
   } else {
@@ -228,7 +240,16 @@ const goBack = () => {
 }
 
 // 组件挂载时
-onMounted(() => {
+onMounted(async () => {
+  let payres = await paxios.post("/check/get_pay_type");
+  if (payres.data.code == 0) {
+    let userPaytype: string = payres.data.data;
+    const paySet = new Set(
+      userPaytype.split(',').map(format => format.trim().toLowerCase())
+    );
+    hasWxpay.value = paySet.has('wechat');
+    hasAlipay.value = paySet.has('alipay');
+  }
   // 如果URL中有订单号参数，自动查询
   const urlOrderNo = router.currentRoute.value.query.orderNo as string
   if (urlOrderNo) {
@@ -285,20 +306,24 @@ const handleRefund = async () => {
             </el-form-item>
           </el-form>
           <div v-show="showTips">
-             <el-tooltip content="<span style='font-size: 16px;'>支付宝付款记录中的“商户订单号”就是订单号</span><br/><br/><img src='/images/zfbpayid.png'>" raw-content>
-            <span>支付宝订单号？</span>
-          </el-tooltip>
-          <el-tooltip  content="<span style='font-size: 16px;'>微信付款记录中的“商户单号”就是订单号</span><br/><br/><img src='/images/wxpayid.png'>" raw-content>
-            <span style="margin-left: 20px;font-size: 14px;">微信订单号？</span>
-          </el-tooltip>
-          <el-alert type="primary" :closable="false">
-            <template #default>
-              填写检测时的"卡号"或“订单号"，查询报告。如果一次检测用了多个卡号，任意一个卡号即可查询报告。<span
-                style="color: var(--el-color-danger);">报告仅保留7天，请及时下载报告。</span>
-            </template>
-          </el-alert>
+            <el-tooltip v-if="hasAlipay"
+              content="<span style='font-size: 16px;'>支付宝付款记录中的“商户订单号”就是订单号</span><br/><br/><img src='/images/zfbpayid.png'>"
+              raw-content>
+              <span style="font-size: 14px;text-decoration: underline;">支付宝订单号？</span>
+            </el-tooltip>
+            <el-tooltip v-if="hasWxpay"
+              content="<span style='font-size: 16px;'>微信付款记录中的“商户单号”就是订单号</span><br/><br/><img src='/images/wxpayid.png'>"
+              raw-content>
+              <span style="margin-left: 20px;font-size: 14px;text-decoration: underline;">微信订单号？</span>
+            </el-tooltip>
+            <el-alert type="primary" :closable="false">
+              <template #default>
+                填写检测时的"卡号"或“订单号"，查询报告。如果一次检测用了多个卡号，任意一个卡号即可查询报告。<span
+                  style="color: var(--el-color-danger);">报告仅保留7天，请及时下载报告。</span>
+              </template>
+            </el-alert>
           </div>
-         
+
         </div>
       </div>
 
@@ -361,6 +386,12 @@ const handleRefund = async () => {
               </el-icon>
             </div>
             <h3 class="status-title">正在检测</h3>
+          </div>
+
+          <div style="margin-bottom: 10px;" v-if="orderInfo && (orderInfo.status === OrderStatus.PROCESSING)">
+            <el-alert v-if="takeTime.level == 1" :title="takeTime.tips" type="primary" :closable="false" />
+            <el-alert v-if="takeTime.level == 2" :title="takeTime.tips" type="warning" :closable="false" />
+            <el-alert v-if="takeTime.level == 3" :title="takeTime.tips" type="error" :closable="false" />
           </div>
 
           <div class="order-info">
@@ -531,8 +562,6 @@ const handleRefund = async () => {
   width: 100%;
   min-width: 240px;
   height: 44px;
-  padding-left: 20px;
-  border-radius: 22px;
   box-shadow: 0 0 0 1px var(--el-color-primary-light-7) inset;
   transition: box-shadow 0.25s ease;
 }
@@ -593,7 +622,6 @@ const handleRefund = async () => {
 }
 
 .search-box {
-  max-width: 640px;
   margin: 0 auto;
   padding: 28px 28px 22px;
   background: #fff;
@@ -611,7 +639,6 @@ const handleRefund = async () => {
 .search-box :deep(.el-button) {
   height: 44px;
   padding: 0 28px;
-  border-radius: 22px;
   font-size: 15px;
   font-weight: 500;
   transition: transform 0.25s ease, box-shadow 0.25s ease;
@@ -758,7 +785,7 @@ const handleRefund = async () => {
   border-left: 4px solid var(--el-color-primary);
   border-radius: 12px;
   padding: 22px 24px;
-  margin-bottom: 24px;
+  margin-bottom: 10px;
 }
 
 .info-title {
@@ -913,6 +940,7 @@ const handleRefund = async () => {
 }
 
 @keyframes breathe {
+
   0%,
   100% {
     box-shadow: 0 0 0 8px var(--el-color-primary-light-8);

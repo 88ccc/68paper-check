@@ -3,6 +3,7 @@ import { useWebsitConfigStore } from '@/stores/websitConfig'
 import { useProductConfigStore } from '@/stores/productConfig'
 import { storeToRefs } from "pinia"
 import { paxios } from '@/utils/paxios'
+import { useLayoutConfigStore } from '@/stores/layoutConfig'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -20,6 +21,16 @@ const router = createRouter({
           path: '/check',
           name: 'Check',
           component: () => import('@/views/Check.vue'),
+        },
+        {
+          path: '/zpcheck',
+          name: 'ZPCheck',
+          component: () => import('@/views/ZPCheck.vue'),
+        },
+        {
+          path: '/rewrite',
+          name: 'rewrite',
+          component: () => import('@/views/ReWrite.vue'),
         },
         {
           path: '/report',
@@ -51,9 +62,41 @@ const router = createRouter({
   }
 })
 
+function convertNumberToUnit(num: number) {
+  // 转为有效数字
+  const number = Number(num);
+  if (isNaN(number)) return '';
+
+  // 0 特殊处理
+  if (number === 0) return '篇';
+
+  // 1️⃣ 整万倍数（最高优先级）
+  if (number % 10000 === 0) {
+    const val = number / 10000;
+    return val === 1 ? '万字符' : `${val}万字符`;
+  }
+
+  // 2️⃣ 整千倍数
+  if (number % 1000 === 0) {
+    const val = number / 1000;
+    return val === 1 ? '千字符' : `${val}千字符`;
+  }
+
+  // 3️⃣ 整百倍数
+  if (number % 100 === 0) {
+    const val = number / 100;
+    return val === 1 ? '百字符' : `${val}百字符`;
+  }
+
+  // 都不满足，原样返回
+  return String(number) + '字符';
+}
+
+
 router.beforeEach(async (to, from, next) => {
   const { webIsInit, apiUrl, webSet, joinUrl } = storeToRefs(useWebsitConfigStore());
   const { productList, endtimeId } = storeToRefs(useProductConfigStore());
+  const { homeProductArray,productGroup } = storeToRefs(useLayoutConfigStore());
   try {
     if (!webIsInit.value) {
       const res = await fetch('/config.json');
@@ -110,6 +153,73 @@ router.beforeEach(async (to, from, next) => {
       const jres = await paxios.get("/check/get_join_url");
       if (jres.data.code == 0) {
         joinUrl.value = jres.data.data.join_url;
+      }
+      try {
+        const layoutRes = await fetch('/layout.json');
+        const layoutConfig = await layoutRes.json();
+        let homeProductList = null;
+              if (layoutConfig.home && layoutConfig.home.data) {
+        homeProductList = layoutConfig.home.data;
+      }
+      if (homeProductList) {
+        for (let i = 0; i < homeProductList.length; i++) {
+          if (homeProductList[i].products.length > 0) {
+            //字符串分割成数组
+            let products = homeProductList[i].products.split(',');
+            for (let j = 0; j < products.length; j++) {
+              products[j] = products[j].trim();
+              let find = false;
+              for (let m = 0; m < productList.value.length; m++) {
+                if (productList.value[m].id == products[j]) {
+                  products[j] = productList.value[m].id;
+                  find = true;
+                  break;
+                }
+              }
+              if (!find) {
+                products.splice(j, 1);
+                j--;
+              }
+            }
+            if (products.length > 0) {
+              homeProductArray.value.push({
+                title: homeProductList[i].title,
+                desc: homeProductList[i].desc,
+                products: products
+              })
+            }
+
+          } else {
+            continue;
+          }
+        }
+      }
+      if (layoutConfig.group) {
+        for (let i = 0; i < layoutConfig.group.length; i++) {
+          let items = layoutConfig.group[i].data;
+          let gp = [];
+          for (let j = 0; j < items.length; j++) {
+            let find = false;
+            for (let m = 0; m < productList.value.length; m++) {
+              if (productList.value[m].id == items[j].id) {
+                gp.push({
+                  id: productList.value[m].id,
+                  name: productList.value[m].name,
+                  purpose: items[j].purpose,
+                  price: "" + (productList.value[m].price / 100).toFixed(2) + "元/" + convertNumberToUnit(productList.value[m].unit)
+                })
+                find = true;
+                break;
+              }
+            }
+          }
+          productGroup.value.push({
+            items: gp
+          })
+        }
+      }
+      } catch (err) {
+        console.log(err)
       }
       webIsInit.value = true;
     }

@@ -22,13 +22,18 @@ export const paxios = axios.create({
 
 // 添加请求拦截器
 paxios.interceptors.request.use(function (config: any) {
-    if(config.url.startsWith("http")){
-        return config;
-    }
+    
     if (baseURL == "") {
         let websitConfigStore = useWebsitConfigStore()
         const { apiUrl } = websitConfigStore
         baseURL = apiUrl;
+    }
+    if(config.url.startsWith("http")){
+        if(config.url.startsWith(baseURL)){
+            config.url = config.url.substring(baseURL.length)
+        }else{
+            return config;
+        }
     }
     let aid = null;
     if (config.url.startsWith("/check")) {
@@ -37,7 +42,6 @@ paxios.interceptors.request.use(function (config: any) {
     if (aid) {
         config.headers.aid = aid
     }
-    console.log(config)
     config.url = baseURL + config.url
     
     return config;
