@@ -26,10 +26,10 @@ const router = useRouter()
 const loading = ref(false);
 const txtupload = ref(true);
 const needEndTime = ref(false);
-const currHasSchool = ref(false);
-const currHasSchool_x = ref(false);
-const currHasClassCode = ref(false);
-const currHasClassType = ref(false);
+const currHasZPtype = ref(false);
+const currHasZPclass = ref(false);
+let zppid = '';
+
 const showCardDialog = ref(false);
 const pricetips = ref("");
 const dialogWidth = ref('600px')
@@ -77,32 +77,37 @@ const cardForm = reactive({
 
 interface WPZPPARAM {
   value: string;
+  code: string;
   name: string;
 }
-const wpzpSchoolId = ref<WPZPPARAM[]>([]);
-const wpzpClassCode = ref<WPZPPARAM[]>([]);
-const wpzpClassType = ref<WPZPPARAM[]>([]);
+const wpzpClass = ref<WPZPPARAM[]>([]);
+const wpzpType = ref<WPZPPARAM[]>([]);
 
-// 将 wpzpSchoolId 转换为 el-select-v2 需要的格式
-const schoolOptions = computed(() => {
-  return wpzpSchoolId.value.map(item => ({
-    label: item.name,
+// 将 wpzpClass 转换为 el-select-v2 需要的格式
+const classOptions = computed(() => {
+  return wpzpClass.value.map(item => ({
+    label: item.name + '(' + item.code + ')',
     value: item.value
   }));
 });
 
-function getschoolbyid(id: string) {
-  return wpzpSchoolId.value.find(item => item.value === id)?.name || '';
+function getzpclassbyid(id: string) {
+  return wpzpClass.value.find(item => item.value === id)?.name || '';
+}
+function getzptypebyid(id: string) {
+  return wpzpType.value.find(item => item.value === id)?.name || '';
 }
 
-function getClassCodebyid(id: string) {
-  return wpzpClassCode.value.find(item => item.value === id)?.name || '';
-}
-
-function getClassTypebyid(id: string) {
-
-  return wpzpClassType.value.find(item => item.value === id)?.name || '';
-
+function handleZPtypeChange(value: string) {
+  formData.zpclass = "";
+  wpzpClass.value = [];
+  paxios.get("/check/get_wpzp_class?pid=" + zppid + "&type=" + value).then(res => {
+    if (res.data.code === 0) {
+      wpzpClass.value = res.data.data;
+    }
+  }).catch(err => {
+    console.error('获取学科参数失败:', err);
+  });
 }
 
 function convertNumberToUnit(num: number) {
@@ -207,9 +212,8 @@ const formData = reactive({
   title: '',
   endTime: '',
   author: '',
-  school_id: "",
-  class_code: "",
-  class_type: "",
+  zptype: "",
+  zpclass: "",
   uploadType: 'file',
   file: null as File | null,
   text: '',
@@ -308,31 +312,34 @@ onMounted(async () => {
   }
 
   //获取参数
-  let res1j = await fetch('/wpzp_param.json');
-  let res1 = await res1j.json();
-  if (res1.code === 0) {
-    wpzpSchoolId.value = res1.school;
-    wpzpClassCode.value = res1.classcode;
-    wpzpClassType.value = res1.classtype;
+  if (productid == "cqvipzpdxs" || productid == "cqvipzpdxsys" || productid == "cqvipzpyjs") {
+    currHasZPtype.value = true;
+    currHasZPclass.value = true;
+  } else {
+    currHasZPtype.value = false;
+    currHasZPclass.value = false;
   }
 
-  if (productid == "cqvipzpdxs") {
-    currHasSchool_x.value = true;
-  } else {
-    currHasSchool_x.value = false;
-  }
-  if (productid == "cqvipzpyjs") {
-    currHasSchool.value = true;
-    currHasClassCode.value = true;
-  } else {
-    currHasClassCode.value = false;
-    currHasSchool.value = false;
-  }
+  if (currHasZPtype.value) {
+    //1=普通本科，2=高职本科,3=高职高专 4=专业学位,5=学术学位
+    if (productid == "cqvipzpdxs" || productid == "cqvipzpdxsys") {
+      zppid = "1";
+      wpzpType.value = [
+        { value: '1', code: '', name: '普通本科' },
+        { value: '2', code: '', name: '高职本科' },
+        { value: '3', code: '', name: '高职高专' }
+      ];
+    } else if (productid == "cqvipzpyjs") {
+      zppid = "2";
+      wpzpType.value = [
+        { value: '4', code: '', name: '专业学位' },
+        { value: '5', code: '', name: '学术学位' }
+      ];
+    }
 
-  if (productid == "cqvipzpqk") {
-    currHasClassType.value = true;
-  } else {
-    currHasClassType.value = false;
+    formData.zptype = '';
+    formData.zpclass = '';
+    wpzpClass.value = [];
   }
 
 })
@@ -383,7 +390,9 @@ async function toUploadFile(file: File) {
 
   try {
     loading.value = true;
+    console.log(product.value.id);
     let res = await paxios.post("/check/get_upload_param", { product_id: product.value.id })
+    console.log(res.data.code);
     if (res.data.code != 0) {
       ElMessage.error(res.data.msg);
       loading.value = false;
@@ -518,9 +527,8 @@ async function report_info() {
       title: formData.title,
       author: formData.author,
       end_date: formData.endTime,
-      school_id: formData.school_id,
-      class_code: formData.class_code,
-      class_type: formData.class_type
+      zptype: formData.zptype,
+      zpclass: formData.zpclass
     });
 
     if (res.data.code != 0) {
@@ -661,8 +669,10 @@ const nextStep = async () => {
       return
     }
     const success = await analyzeFile()
+    console.log("111 formData.piece=" + formData.piece);
     if (success) {
       const ret = await report_info();
+      console.log("222 formData.piece=" + formData.piece);
       if (ret) {
         cardForm.cardid1 = "";
         cardForm.cardid2 = "";
@@ -1008,23 +1018,14 @@ async function processWechatPayment() {
                   <el-date-picker v-model="formData.endTime" type="date" format="YYYY-MM-DD"
                     value-format="YYYY-MM-DD" />
                 </el-form-item>
-                <el-form-item v-if="currHasSchool" label="学校" prop="school_id">
-                  <el-select-v2 v-model="formData.school_id" filterable :options="schoolOptions" placeholder="请选择学校"
+                <el-form-item v-if="currHasZPtype" label="类型" prop="zptype">
+                  <el-select v-model="formData.zptype" placeholder="请选择类型" @change="handleZPtypeChange" clearable>
+                    <el-option v-for="item in wpzpType" :key="item.value" :label="item.name" :value="item.value" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item v-if="currHasZPclass" label="学科" prop="zpclass">
+                  <el-select-v2 v-model="formData.zpclass" filterable :options="classOptions" placeholder="请选择学科"
                     clearable />
-                </el-form-item>
-                <el-form-item v-if="currHasSchool_x" label="学校">
-                  <el-select-v2 v-model="formData.school_id" filterable :options="schoolOptions"
-                    placeholder="请选择学校,可以不填" clearable />
-                </el-form-item>
-                <el-form-item v-if="currHasClassCode" label="学科" prop="class_code">
-                  <el-select v-model="formData.class_code" placeholder="请选择学科" clearable>
-                    <el-option v-for="item in wpzpClassCode" :key="item.value" :label="item.name" :value="item.value" />
-                  </el-select>
-                </el-form-item>
-                <el-form-item v-if="currHasClassType" label="类型" prop="class_type">
-                  <el-select v-model="formData.class_type" placeholder="请选择类型" clearable>
-                    <el-option v-for="item in wpzpClassType" :key="item.value" :label="item.name" :value="item.value" />
-                  </el-select>
                 </el-form-item>
 
 
@@ -1111,11 +1112,10 @@ async function processWechatPayment() {
                 }}</el-descriptions-item>
                 <el-descriptions-item v-if="formData.fileName" label="文件名">{{ formData.fileName
                 }}</el-descriptions-item>
-                <el-descriptions-item v-if="formData.school_id" label="学校">{{ getschoolbyid(formData.school_id)
+                <el-descriptions-item v-if="formData.zptype != ''" label="类型">{{ getzptypebyid(formData.zptype)
                 }}</el-descriptions-item>
-                <el-descriptions-item v-if="formData.class_code" label="学科">{{ getClassCodebyid(formData.class_code)
-                }}</el-descriptions-item>
-                <el-descriptions-item v-if="formData.class_type" label="类型">{{ getClassTypebyid(formData.class_type)
+                <el-descriptions-item v-if="formData.zpclass != ''" label="学科">{{
+                  getzpclassbyid(formData.zpclass)
                 }}</el-descriptions-item>
                 <el-descriptions-item v-if="formData.wordCount" label="字数">{{ formData.wordCount.toLocaleString() }}
                   字</el-descriptions-item>
